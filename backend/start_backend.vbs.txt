@@ -1,0 +1,8 @@
+' start_backend.vbs
+Set WshShell = CreateObject("WScript.Shell")
+
+' Pfad zur Batch-Datei (anpassen, falls du einen anderen Namen oder Pfad hast)
+batPath = "C:\Users\micha\tpgames\tower-game\backend\start_backend.bat"
+
+' Startet die Batch-Datei unsichtbar
+WshShell.Run Chr(34) & batPath & Chr(34), 0, False
