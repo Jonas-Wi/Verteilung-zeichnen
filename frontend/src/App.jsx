@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-import PhaserGame from "./PhraserGame";
+import ColorGame from "./game/ColorGame";
+import NumberGame from "./game/NumberGame";
 
 export default function App() {
   const [sessionId, setSessionId] = useState(null);
@@ -198,13 +199,23 @@ export default function App() {
             <div className="text-2xl">Level: {level}</div>
             <div className="text-sm text-gray-400">Modus: {gameMode === "number" ? "Zahlenverteilung (0-20)" : "Farbverteilung (Grautöne)"}</div>
           </div>
-          <PhaserGame 
-            sessionId={sessionId} 
-            level={level}
-            gameMode={gameMode}
-            onGameEnd={onGameEnd}
-            onRestartGame={() => startGame(gameMode)}
-          />
+          {gameMode === "color" ? (
+            <ColorGame 
+              sessionId={sessionId} 
+              level={level}
+              gameMode={gameMode}
+              onGameEnd={onGameEnd}
+              onRestartGame={() => startGame(gameMode)}
+            />
+          ) : (
+            <NumberGame 
+              sessionId={sessionId} 
+              level={level}
+              gameMode={gameMode}
+              onGameEnd={onGameEnd}
+              onRestartGame={() => startGame(gameMode)}
+            />
+          )}
         </div>
       )}
 
