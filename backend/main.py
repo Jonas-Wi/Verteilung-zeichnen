@@ -1,3 +1,4 @@
+from level import Level
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -7,7 +8,9 @@ from typing import List, Optional
 import time
 import math
 from evaluator import DistributionEvaluator
-from zahlen_evaluator import ZahlenEvaluator
+from zahlenevaluation.zahlen_evaluator import ZahlenEvaluator
+from fragen.stufe1 import Stufe1Fragen
+from zahlenevaluation import W1S1Evaluation
 
 app = FastAPI()
 
@@ -29,9 +32,13 @@ class SetDistributionRequest(BaseModel):
     distribution_type: str
     game_mode: Optional[str] = "color"  # "color" oder "number"
 
+
+# Erweiterte StartSessionRequest für Zahlenspiel
 class StartSessionRequest(BaseModel):
     distribution_type: Optional[str] = "normal"
     game_mode: Optional[str] = "color"
+    welt: Optional[int] = None  # Für Zahlenspiel: 1-10
+    stufe: Optional[int] = None  # Für Zahlenspiel: 1-6
 
 @app.post("/start-session")
 def start_session(request: StartSessionRequest):
@@ -39,33 +46,62 @@ def start_session(request: StartSessionRequest):
     Startet eine neue Session mit einer definierten Verteilung.
     game_mode: "color" für Farbverteilung (Standard), "number" für Zahlenverteilung (0-20)
     """
-    session_id = str(uuid.uuid4())
-    distribution_type = request.distribution_type
-    game_mode = request.game_mode if request.game_mode in ["color", "number"] else "color"
-    
-    print(f"🎮 Starting session with game_mode: {game_mode}, distribution_type: {distribution_type}")
-    
-    if game_mode == "number":
-        # Zahlenverteilung: Generiere Zahlenwerte 0-20
-        if distribution_type not in ZahlenVerteilung.available():
-            distribution_type = "normal"
-        samples = ZahlenVerteilung.generate(distribution_type, N=50)
-        print(f"📊 Generated NUMBER samples (0-20): {samples[:5]}")
-    else:
-        # Farbverteilung (Original): Generiere Prozent-Histogramm
-        if distribution_type not in Verteilung.available():
-            distribution_type = "normal"
-        samples = Verteilung.generate(distribution_type, N=50)
-        print(f"📊 Generated COLOR samples (0-100): {samples[:5]}")
-    
-    SESSIONS[session_id] = {
-        "level": 1,
-        "distribution_type": distribution_type,
-        "game_mode": game_mode,
-    }
-    SESSIONS[session_id].setdefault("distributions", {})
-    SESSIONS[session_id]["distributions"]["generated"] = {"samples": samples, "ts": int(time.time())}
-    return {"session_id": session_id, "current_level": 1, "distribution": samples, "game_mode": game_mode}
+    try:
+        print("/start-session called with:", request.dict())
+        session_id = str(uuid.uuid4())
+        distribution_type = request.distribution_type
+        game_mode = request.game_mode if request.game_mode in ["color", "number"] else "color"
+        
+        print(f"🎮 Starting session with game_mode: {game_mode}, distribution_type: {distribution_type}")
+        
+        if game_mode == "number":
+            # Zahlenverteilung: Generiere Zahlenwerte 0-20
+            if distribution_type not in ZahlenVerteilung.available():
+                distribution_type = "normal"
+            samples = ZahlenVerteilung.generate(distribution_type, N=50)
+            print(f"📊 Generated NUMBER samples (0-20): {samples[:5]}")
+            # Level-Infos abfragen und speichern
+            # Immer die Werte aus der Klasse Level verwenden
+            level_defaults = Level()
+            welt = level_defaults.welt
+            stufe = level_defaults.stufe
+            level_info = Level(welt=welt, stufe=stufe)
+            # --- NEU: Fragen für Welt 1, Stufe 1 generieren ---
+            stufe1_fragen = None
+            if welt == 1 and stufe == 1:
+                stufe1_fragen = Stufe1Fragen(samples).get_fragen()
+        else:
+            # Farbverteilung (Original): Generiere Prozent-Histogramm
+            if distribution_type not in Verteilung.available():
+                distribution_type = "normal"
+            samples = Verteilung.generate(distribution_type, N=50)
+            print(f"📊 Generated COLOR samples (0-100): {samples[:5]}")
+            level_info = None
+            stufe1_fragen = None
+        
+        SESSIONS[session_id] = {
+            "level": 1,
+            "distribution_type": distribution_type,
+            "game_mode": game_mode,
+        }
+        if level_info:
+            SESSIONS[session_id]["level_info"] = level_info.dict()
+        SESSIONS[session_id].setdefault("distributions", {})
+        SESSIONS[session_id]["distributions"]["generated"] = {"samples": samples, "ts": int(time.time())}
+        response = {
+            "session_id": session_id,
+            "current_level": 1,
+            "distribution": samples,
+            "game_mode": game_mode
+        }
+        if level_info:
+            response["level_info"] = level_info.dict()
+        if stufe1_fragen:
+            response["stufe1_fragen"] = stufe1_fragen
+        return response
+    except Exception as e:
+        print("Error in start_session:", e)
+        raise
 
 
 # Neuer Endpunkt: Verteilung für eine Session setzen
@@ -141,6 +177,35 @@ def solve(data: SolveData):
         SESSIONS[data.session_id]["level"] = max(1, SESSIONS[data.session_id]["level"] - 1)
 
     return {"level": SESSIONS[data.session_id]["level"]}
+
+
+class W1S1EvaluateRequest(BaseModel):
+    session_id: str
+    antworten: List[int]
+
+
+@app.post("/evaluate-w1s1")
+def evaluate_w1s1(data: W1S1EvaluateRequest):
+    """Evaluate Welt1 Stufe1 multiple-choice answers on the backend.
+
+    Uses the stored generated samples for the session to recreate questions
+    via `Stufe1Fragen` and then evaluates answers using `W1S1Evaluation`.
+    """
+    sid = data.session_id
+    if sid not in SESSIONS:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Get generated samples for this session
+    generated = SESSIONS.get(sid, {}).get("distributions", {}).get("generated", {})
+    samples = generated.get("samples")
+    if not samples:
+        raise HTTPException(status_code=400, detail="No generated distribution for session")
+
+    # Recreate the Stufe1 questions and evaluate
+    fragen = Stufe1Fragen(samples).get_fragen()
+    evaluator = W1S1Evaluation(fragen, data.antworten)
+    result = evaluator.evaluate()
+    return {"status": "ok", "evaluation": result}
 
 
 # --- Distribution endpoints (scaffold) ---

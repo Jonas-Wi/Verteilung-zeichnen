@@ -4,35 +4,59 @@ import NumberGame from "./game/NumberGame";
 
 export default function App() {
   const [sessionId, setSessionId] = useState(null);
-  const [level, setLevel] = useState(1);
+  // Level als Objekt {welt, stufe}
+  const [level, setLevel] = useState({ welt: 1, stufe: 1 });
   const [showOverlay, setShowOverlay] = useState(false);
   const [groundTruth, setGroundTruth] = useState(null);
   const [maeResult, setMaeResult] = useState(null);
   const [gameMode, setGameMode] = useState("color"); // "color" oder "number"
+  const [stufe1Fragen, setStufe1Fragen] = useState(null);
 
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const [playerBins, setPlayerBins] = useState(() => new Array(101).fill(0));
 
   const startGame = async (mode = "color") => {
+    console.log("startGame called", mode);
     try {
-      const res = await fetch("http://localhost:3000/start-session", {
+      const body = { 
+        distribution_type: "normal",
+        game_mode: mode
+      };
+      const url = "http://127.0.0.1:3000/start-session";
+      console.log("fetch ->", url, body);
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          distribution_type: "normal",
-          game_mode: mode
-        }),
+        body: JSON.stringify(body),
       });
+      if (!res.ok) {
+        const t = await res.text();
+        console.error("start-session returned non-OK:", res.status, t);
+        alert(`Backend returned ${res.status}`);
+        return;
+      }
       const json = await res.json();
       if (json.session_id) {
         setSessionId(json.session_id);
-        setLevel(json.current_level || 1);
+        // Debug: Logge die Level-Infos aus dem Backend
+        console.log("LEVEL-INFO aus Backend:", json.level_info, "current_level:", json.current_level);
+        // Level-Objekt aus Backend (level_info) oder fallback
+        if (json.level_info && typeof json.level_info === 'object') {
+          setLevel(json.level_info);
+        } else if (json.current_level && typeof json.current_level === 'object') {
+          setLevel(json.current_level);
+        } else if (typeof json.current_level === 'number') {
+          setLevel({ welt: 1, stufe: json.current_level });
+        } else {
+          setLevel({ welt: 1, stufe: 1 });
+        }
         setGameMode(json.game_mode || mode);
         setShowOverlay(false);
         setGroundTruth(null);
         setMaeResult(null);
         setPlayerBins(new Array(101).fill(0));
+        setStufe1Fragen(json.stufe1_fragen || null);
       }
     } catch (e) {
       console.error("Failed to start session:", e);
@@ -196,7 +220,7 @@ export default function App() {
       {sessionId && (
         <div className="w-full max-w-4xl mt-6">
           <div className="mb-4 text-center">
-            <div className="text-2xl">Level: {level}</div>
+            <div className="text-2xl">Level: Welt {level.welt}, Stufe {level.stufe}</div>
             <div className="text-sm text-gray-400">Modus: {gameMode === "number" ? "Zahlenverteilung (0-20)" : "Farbverteilung (Grautöne)"}</div>
           </div>
           {gameMode === "color" ? (
@@ -214,6 +238,7 @@ export default function App() {
               gameMode={gameMode}
               onGameEnd={onGameEnd}
               onRestartGame={() => startGame(gameMode)}
+              stufe1_fragen={stufe1Fragen}
             />
           )}
         </div>

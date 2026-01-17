@@ -1,7 +1,7 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import GameCommon from "./GameCommon";
 import { NumberDistributionVisualizer } from "../visualizer/NumberDistributionVisualizer";
+import W1S1MultipleChoice from "../visualizer/w1s1.jsx";
 
 export default function NumberGame(props) {
 	const { sessionId, level, onRestartGame } = props;
@@ -18,7 +18,9 @@ export default function NumberGame(props) {
 	const [additionalFreqInput, setAdditionalFreqInput] = useState("");
 	const canvasRef = useRef(null);
 	const visualizerRef = useRef(null);
-	const distributionRef = useRef(null);
+		const distributionRef = useRef(null);
+	const [stufe1Fragen, setStufe1Fragen] = useState([]);
+	const [stufe1Antworten, setStufe1Antworten] = useState([]);
 
 	// Callback für Spielende: Zeige Visualizer/Fragen
 	const handleGameEnd = (payload) => {
@@ -69,8 +71,25 @@ export default function NumberGame(props) {
 		setAdditionalValueInput('');
 		setAdditionalFreqInput('');
 	}
-	function handleFinishAdditionalPeaks() {
-		// Peak-Marker und Balken anzeigen
+	async function handleFinishAdditionalPeaks() {
+		// Sonderfall: Welt 1, Stufe 1 -> keine Zeichnung, direkt Auswertung
+		if (level && level.welt === 1 && level.stufe === 1) {
+			if (visualizerRef.current) {
+				visualizerRef.current.setPreRevealAnswers({
+					peak_value: guessPeakValue,
+					peak_frequency: guessPeakFrequency,
+					additional_peaks: additionalPeaks
+				});
+				// Automatisch auswerten
+				const result = await visualizerRef.current.evaluateDrawing();
+				if (result) {
+					setEvaluationResult(result);
+					setPreRevealStage('revealDone');
+				}
+			}
+			return;
+		}
+		// Standardfall: Zeichnen wie gehabt
 		if (visualizerRef.current && distributionRef.current) {
 			visualizerRef.current.drawAxes(distributionRef.current);
 			const allPeakValues = [guessPeakValue, ...additionalPeaks.map(p => p.value)];
@@ -94,13 +113,30 @@ export default function NumberGame(props) {
 	useEffect(() => {
 		if (!gameActive && distributionRef.current && canvasRef.current) {
 			if (!visualizerRef.current) {
-				visualizerRef.current = new NumberDistributionVisualizer(canvasRef.current, sessionId);
+				visualizerRef.current = new NumberDistributionVisualizer(canvasRef.current, sessionId, level);
+			} else {
+				visualizerRef.current.setLevel(level);
 			}
 			visualizerRef.current.setDrawMode(false);
 			visualizerRef.current.setBlockMode?.(blockMode);
 			visualizerRef.current.drawAxes(distributionRef.current);
 		}
-	}, [gameActive, sessionId, blockMode]);
+	}, [gameActive, sessionId, blockMode, level]);
+
+	// Fragen für Stufe 1 aus level_info laden, wenn vorhanden
+	useEffect(() => {
+		if (!gameActive && level && level.welt === 1 && level.stufe === 1 && props.stufe1_fragen) {
+			setStufe1Fragen(props.stufe1_fragen);
+		}
+	}, [gameActive, level, props.stufe1_fragen]);
+
+	function handleStufe1Fertig(antworten) {
+		setStufe1Antworten(antworten);
+		setPreRevealStage('revealDone');
+	}
+
+	// Dynamische UI je nach InputMode
+	const inputMode = visualizerRef.current?.getInputMode ? visualizerRef.current.getInputMode() : (level && level.welt === 1 && level.stufe === 1 ? 'multiple-choice' : (level && level.welt === 1 && level.stufe === 2 ? 'single-question' : 'full-draw'));
 
 	return (
 		<div>
@@ -108,13 +144,65 @@ export default function NumberGame(props) {
 				<GameCommon {...props} gameMode="number" onGameEnd={handleGameEnd} />
 			) : (
 				<div className="mx-auto">
-					<h2 className="text-center text-xl font-bold mb-4">Zeichne die Zahlenverteilung (0-20)</h2>
+					{/* Headline je nach Modus */}
+					{inputMode === 'multiple-choice' && (
+						<h2 className="text-center text-xl font-bold mb-4">Beantworte die Multiple-Choice-Fragen</h2>
+					)}
+					{inputMode === 'single-question' && (
+						<h2 className="text-center text-xl font-bold mb-4">Beantworte die aktuelle Frage</h2>
+					)}
+					{inputMode === 'full-draw' && (
+						<h2 className="text-center text-xl font-bold mb-4">Zeichne die Zahlenverteilung (0-20)</h2>
+					)}
 					<div className="flex flex-col items-center">
-
-						{/* Pre-reveal questions and highlight flow */}
-						{preRevealStage && preRevealStage !== 'ready' && preRevealStage !== 'revealDone' && (
+						{/* Fragen-Flow je nach Modus */}
+						{inputMode === 'multiple-choice' && stufe1Fragen.length > 0 && preRevealStage !== 'revealDone' ? (
+							<W1S1MultipleChoice sessionId={sessionId} fragen={stufe1Fragen} onAntwortenFertig={handleStufe1Fertig} />
+						) : null}
+						{inputMode !== 'multiple-choice' && preRevealStage && preRevealStage !== 'ready' && preRevealStage !== 'revealDone' && (
 							<div className="mb-3 p-3 bg-white border-2 border-gray-300 rounded-lg max-w-md text-gray-800">
-								{preRevealStage === 'askPeakValue' && (
+								{/* Multiple-Choice: Nur Peak-Wert und Häufigkeit */}
+								{inputMode === 'multiple-choice' && (
+									<>
+										{preRevealStage === 'askPeakValue' && (
+											<div>
+												<div className="font-bold mb-2">Welchen Zahlenwert hast du am häufigsten gesehen? (0-20)</div>
+												<div className="flex items-center gap-2">
+													<input
+														type="number"
+														min={0}
+														max={20}
+														value={peakValueInput}
+														onChange={(e) => setPeakValueInput(e.target.value)}
+														className="px-3 py-2 border rounded w-28"
+														placeholder="z.B. 12"
+													/>
+													<button onClick={handleSubmitPeakValue} className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Weiter</button>
+												</div>
+											</div>
+										)}
+										{preRevealStage === 'askPeakFrequency' && (
+											<div>
+												<div className="font-bold mb-2">Wie oft (ungefähr) kam der Wert {guessPeakValue} vor?</div>
+												<div className="text-sm text-gray-600 mb-2">Tipp: Es gab insgesamt 50 Ballons</div>
+												<div className="flex items-center gap-2">
+													<input
+														type="number"
+														min={0}
+														max={50}
+														value={peakFrequencyInput}
+														onChange={(e) => setPeakFrequencyInput(e.target.value)}
+														className="px-3 py-2 border rounded w-28"
+														placeholder="z.B. 8"
+													/>
+													<button onClick={handleSubmitPeakFrequency} className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Fertig</button>
+												</div>
+											</div>
+										)}
+									</>
+								)}
+								{/* Single-Question: Nur Peak-Wert */}
+								{inputMode === 'single-question' && preRevealStage === 'askPeakValue' && (
 									<div>
 										<div className="font-bold mb-2">Welchen Zahlenwert hast du am häufigsten gesehen? (0-20)</div>
 										<div className="flex items-center gap-2">
@@ -127,82 +215,108 @@ export default function NumberGame(props) {
 												className="px-3 py-2 border rounded w-28"
 												placeholder="z.B. 12"
 											/>
-											<button onClick={handleSubmitPeakValue} className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Weiter</button>
+											<button onClick={handleSubmitPeakValue} className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Fertig</button>
 										</div>
 									</div>
 								)}
-								{preRevealStage === 'askPeakFrequency' && (
-									<div>
-										<div className="font-bold mb-2">Wie oft (ungefähr) kam der Wert {guessPeakValue} vor?</div>
-										<div className="text-sm text-gray-600 mb-2">Tipp: Es gab insgesamt 50 Ballons</div>
-										<div className="flex items-center gap-2">
-											<input
-												type="number"
-												min={0}
-												max={50}
-												value={peakFrequencyInput}
-												onChange={(e) => setPeakFrequencyInput(e.target.value)}
-												className="px-3 py-2 border rounded w-28"
-												placeholder="z.B. 8"
-											/>
-											<button onClick={handleSubmitPeakFrequency} className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Weiter</button>
-										</div>
-									</div>
-								)}
-								{preRevealStage === 'askAdditionalPeaks' && (
-									<div>
-										<div className="font-bold mb-2">Hast du noch andere Zahlenwerte häufig gesehen?</div>
-										<div className="text-sm text-gray-600 mb-3">Gib weitere markante Werte an (optional)</div>
-										{additionalPeaks.length > 0 && (
-											<div className="mb-3 p-2 bg-gray-100 rounded">
-												<div className="text-sm font-semibold mb-1">Hinzugefügt:</div>
-												{additionalPeaks.map((peak, idx) => (
-													<div key={idx} className="text-sm">
-														• Wert {peak.value}: {peak.frequency}x
-													</div>
-												))}
+								{/* Full-Draw: Alle Fragen */}
+								{inputMode === 'full-draw' && (
+									<>
+										{preRevealStage === 'askPeakValue' && (
+											<div>
+												<div className="font-bold mb-2">Welchen Zahlenwert hast du am häufigsten gesehen? (0-20)</div>
+												<div className="flex items-center gap-2">
+													<input
+														type="number"
+														min={0}
+														max={20}
+														value={peakValueInput}
+														onChange={(e) => setPeakValueInput(e.target.value)}
+														className="px-3 py-2 border rounded w-28"
+														placeholder="z.B. 12"
+													/>
+													<button onClick={handleSubmitPeakValue} className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Weiter</button>
+												</div>
 											</div>
 										)}
-										<div className="flex items-center gap-2 mb-2">
-											<input
-												type="number"
-												min={0}
-												max={20}
-												value={additionalValueInput}
-												onChange={(e) => setAdditionalValueInput(e.target.value)}
-												className="px-3 py-2 border rounded w-20"
-												placeholder="Wert"
-											/>
-											<input
-												type="number"
-												min={0}
-												max={50}
-												value={additionalFreqInput}
-												onChange={(e) => setAdditionalFreqInput(e.target.value)}
-												className="px-3 py-2 border rounded w-20"
-												placeholder="Anzahl"
-											/>
-											<button 
-												onClick={handleAddAdditionalPeak} 
-												className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-											>
-												+ Hinzufügen
-											</button>
-										</div>
-										<button 
-											onClick={handleFinishAdditionalPeaks} 
-											className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 mt-2"
-										>
-											Fertig - Zum Zeichnen
-										</button>
-									</div>
+										{preRevealStage === 'askPeakFrequency' && (
+											<div>
+												<div className="font-bold mb-2">Wie oft (ungefähr) kam der Wert {guessPeakValue} vor?</div>
+												<div className="text-sm text-gray-600 mb-2">Tipp: Es gab insgesamt 50 Ballons</div>
+												<div className="flex items-center gap-2">
+													<input
+														type="number"
+														min={0}
+														max={50}
+														value={peakFrequencyInput}
+														onChange={(e) => setPeakFrequencyInput(e.target.value)}
+														className="px-3 py-2 border rounded w-28"
+														placeholder="z.B. 8"
+													/>
+													<button onClick={handleSubmitPeakFrequency} className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Weiter</button>
+												</div>
+											</div>
+										)}
+										{preRevealStage === 'askAdditionalPeaks' && (
+											<div>
+												<div className="font-bold mb-2">Hast du noch andere Zahlenwerte häufig gesehen?</div>
+												<div className="text-sm text-gray-600 mb-3">Gib weitere markante Werte an (optional)</div>
+												{additionalPeaks.length > 0 && (
+													<div className="mb-3 p-2 bg-gray-100 rounded">
+														<div className="text-sm font-semibold mb-1">Hinzugefügt:</div>
+														{additionalPeaks.map((peak, idx) => (
+															<div key={idx} className="text-sm">
+																• Wert {peak.value}: {peak.frequency}x
+															</div>
+														))}
+													</div>
+												)}
+												<div className="flex items-center gap-2 mb-2">
+													<input
+														type="number"
+														min={0}
+														max={20}
+														value={additionalValueInput}
+														onChange={(e) => setAdditionalValueInput(e.target.value)}
+														className="px-3 py-2 border rounded w-20"
+														placeholder="Wert"
+													/>
+													<input
+														type="number"
+														min={0}
+														max={50}
+														value={additionalFreqInput}
+														onChange={(e) => setAdditionalFreqInput(e.target.value)}
+														className="px-3 py-2 border rounded w-20"
+														placeholder="Anzahl"
+													/>
+													<button 
+														onClick={handleAddAdditionalPeak} 
+														className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+													>
+														+ Hinzufügen
+													</button>
+												</div>
+												<button 
+													onClick={handleFinishAdditionalPeaks} 
+													className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 mt-2"
+												>
+													Fertig - Zum Zeichnen
+												</button>
+											</div>
+										)}
+									</>
 								)}
 							</div>
 						)}
-						<canvas ref={canvasRef} width={530} height={370} className="mx-auto border-2 border-gray-300 bg-white cursor-crosshair" />
+						{/* Canvas und Visualizer nur bei full-draw anzeigen */}
+						{inputMode === 'full-draw' && (
+							<canvas ref={canvasRef} width={530} height={370} className="mx-auto border-2 border-gray-300 bg-white cursor-crosshair" />
+						)}
 					</div>
 					<div className="text-center mt-4 flex justify-center flex-wrap gap-2">
-						{!evaluationResult ? (
+						{/* Buttons nur anzeigen, wenn Zeichnen erlaubt ist */}
+						{inputMode === 'full-draw' && !evaluationResult ? (
 							<>
 								<button 
 									onClick={() => visualizerRef.current?.clear()}
@@ -239,7 +353,7 @@ export default function NumberGame(props) {
 									Evaluieren
 								</button>
 							</>
-						) : (
+						) : inputMode === 'full-draw' ? (
 							<>
 								<button 
 									onClick={() => {
@@ -273,7 +387,7 @@ export default function NumberGame(props) {
 									Spiel neu starten
 								</button>
 							</>
-						)}
+						) : null}
 					</div>
 					{evaluationResult && (
 						<div className="mt-6 p-4 bg-white border-2 border-gray-300 rounded-lg max-w-lg mx-auto">

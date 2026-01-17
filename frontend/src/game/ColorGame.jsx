@@ -79,7 +79,7 @@ export default function ColorGame(props) {
 	useEffect(() => {
 		if (!gameActive && distributionRef.current && canvasRef.current) {
 			if (!visualizerRef.current) {
-				visualizerRef.current = new ColorDistributionVisualizer(canvasRef.current, sessionId);
+				visualizerRef.current = new ColorDistributionVisualizer(canvasRef.current, sessionId, level);
 			}
 			visualizerRef.current.setDrawMode(false);
 			visualizerRef.current.setBlockMode?.(blockMode);

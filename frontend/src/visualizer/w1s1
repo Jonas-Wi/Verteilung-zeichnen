@@ -1,0 +1,47 @@
+import React, { useState } from "react";
+
+// Diese Komponente zeigt die 5 Multiple-Choice-Fragen für Welt 1, Stufe 1 an
+export default function W1S1MultipleChoice({ fragen, onAntwortenFertig }) {
+  const [antworten, setAntworten] = useState(Array(fragen.length).fill(null));
+
+  function handleAntwort(idx, opt) {
+    const newAntworten = [...antworten];
+    newAntworten[idx] = opt;
+    setAntworten(newAntworten);
+  }
+
+  function handleFertig() {
+    if (antworten.some(a => a === null)) {
+      alert("Bitte beantworte alle Fragen.");
+      return;
+    }
+    onAntwortenFertig(antworten);
+  }
+
+  return (
+    <div className="flex flex-col items-center">
+      {fragen.map((frageObj, idx) => (
+        <div key={idx} className="mb-4 w-full max-w-md">
+          <div className="font-bold mb-2">{frageObj.frage}</div>
+          <div className="flex gap-2 flex-wrap">
+            {frageObj.optionen.map((opt, oidx) => (
+              <button
+                key={oidx}
+                onClick={() => handleAntwort(idx, opt)}
+                className={`px-3 py-2 rounded border ${antworten[idx] === opt ? 'bg-green-500 text-white' : 'bg-gray-100'}`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <button
+        onClick={handleFertig}
+        className="px-4 py-2 bg-blue-600 text-white rounded mt-4"
+      >
+        Fertig
+      </button>
+    </div>
+  );
+}

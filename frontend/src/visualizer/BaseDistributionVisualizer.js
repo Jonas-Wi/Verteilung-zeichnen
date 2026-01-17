@@ -1,18 +1,35 @@
 // Basisklasse für Visualizer-Logik (gemeinsame Methoden)
+// Basisklasse für Visualizer-Logik (gemeinsame Methoden)
 export class BaseDistributionVisualizer {
-  constructor(canvas, sessionId = null, gameMode = "color") {
+  constructor(canvas, sessionId = null, gameMode = "color", level = null) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.canvasWidth = canvas.width;
     this.canvasHeight = canvas.height;
     this.sessionId = sessionId;
     this.gameMode = gameMode;
+    this.level = level;
     this.drawing = false;
     this.points = [];
     this.isReadOnly = false;
     this.currentDistribution = null;
     this.savedMaxY = null;
     this.initEventListeners();
+  }
+
+  setLevel(level) {
+    this.level = level;
+  }
+
+  /**
+   * Gibt den Eingabemodus abhängig vom Level zurück.
+   * Mögliche Werte: 'multiple-choice', 'single-question', 'full-draw'
+   */
+  getInputMode() {
+    if (!this.level) return 'full-draw';
+    if (this.level.welt === 1 && this.level.stufe === 1) return 'multiple-choice';
+    if (this.level.welt === 1 && this.level.stufe === 2) return 'single-question';
+    return 'full-draw';
   }
 
   initEventListeners() {

@@ -1,8 +1,31 @@
 import { BaseDistributionVisualizer } from "./BaseDistributionVisualizer";
 
 export class NumberDistributionVisualizer extends BaseDistributionVisualizer {
-  constructor(canvas, sessionId = null) {
-    super(canvas, sessionId, "number");
+  constructor(canvas, sessionId = null, level = null) {
+    super(canvas, sessionId, "number", level);
+  }
+
+
+  setDrawMode(isDrawMode = true) {
+    // Eingabemodus dynamisch je nach Level
+    const mode = this.getInputMode();
+    if (mode === 'multiple-choice' || mode === 'single-question') {
+      this.setReadOnly(true);
+    } else {
+      super.setDrawMode(isDrawMode);
+    }
+  }
+
+  getInputMode() {
+    // Hole aus Basisklasse
+    if (typeof super.getInputMode === 'function') {
+      return super.getInputMode();
+    }
+    // Fallback
+    if (!this.level) return 'full-draw';
+    if (this.level.welt === 1 && this.level.stufe === 1) return 'multiple-choice';
+    if (this.level.welt === 1 && this.level.stufe === 2) return 'single-question';
+    return 'full-draw';
   }
 
   drawAxes(distribution = null) {

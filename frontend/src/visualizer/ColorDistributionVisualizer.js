@@ -1,8 +1,8 @@
 import { BaseDistributionVisualizer } from "./BaseDistributionVisualizer";
 
 export class ColorDistributionVisualizer extends BaseDistributionVisualizer {
-  constructor(canvas, sessionId = null) {
-    super(canvas, sessionId, "color");
+  constructor(canvas, sessionId = null, level = null) {
+    super(canvas, sessionId, "color", level);
   }
 
   drawAxes(distribution = null) {
