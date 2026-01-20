@@ -10,6 +10,9 @@ import math
 from evaluator import DistributionEvaluator
 from zahlenevaluation.zahlen_evaluator import ZahlenEvaluator
 from fragen.stufe1 import Stufe1Fragen
+from fragen.stufe2 import Stufe2Fragen
+from zahlenevaluation.w1s2evaluation import W1S2Evaluation
+from fragen.stufe2 import Stufe2Fragen
 from zahlenevaluation import W1S1Evaluation
 
 app = FastAPI()
@@ -24,7 +27,7 @@ app.add_middleware(
 # --- Session Store ---
 SESSIONS = {}
 from verteilung import Verteilung
-from zahlenverteilung import ZahlenVerteilung
+from verteilungen.verteilungmain import VerteilungMain
 
 
 class SetDistributionRequest(BaseModel):
@@ -39,6 +42,7 @@ class StartSessionRequest(BaseModel):
     game_mode: Optional[str] = "color"
     welt: Optional[int] = None  # Für Zahlenspiel: 1-10
     stufe: Optional[int] = None  # Für Zahlenspiel: 1-6
+    n: Optional[int] = None  # Anzahl Werte für die Verteilung
 
 @app.post("/start-session")
 def start_session(request: StartSessionRequest):
@@ -55,27 +59,35 @@ def start_session(request: StartSessionRequest):
         print(f"🎮 Starting session with game_mode: {game_mode}, distribution_type: {distribution_type}")
         
         if game_mode == "number":
-            # Zahlenverteilung: Generiere Zahlenwerte 0-20
-            if distribution_type not in ZahlenVerteilung.available():
-                distribution_type = "normal"
-            samples = ZahlenVerteilung.generate(distribution_type, N=50)
-            print(f"📊 Generated NUMBER samples (0-20): {samples[:5]}")
             # Level-Infos abfragen und speichern
             # Immer die Werte aus der Klasse Level verwenden
             level_defaults = Level()
             welt = level_defaults.welt
             stufe = level_defaults.stufe
+            n = getattr(request, "n", None)
+            if distribution_type not in VerteilungMain.available():
+                distribution_type = "normal"
+            # In Welt 1 bestimmt w1.py die Anzahl N intern. Ignoriere externes n.
+            if welt == 1:
+                samples = VerteilungMain.generate(distribution_type, welt=welt, stufe=stufe)
+            else:
+                samples = VerteilungMain.generate(distribution_type, N=n if n is not None else 40, welt=welt, stufe=stufe)
+            print(f"📊 Generated NUMBER samples (0-20): len={len(samples)} head={samples[:5]}")
             level_info = Level(welt=welt, stufe=stufe)
             # --- NEU: Fragen für Welt 1, Stufe 1 generieren ---
             stufe1_fragen = None
+            stufe2_fragen = None
             if welt == 1 and stufe == 1:
                 stufe1_fragen = Stufe1Fragen(samples).get_fragen()
+            if welt == 1 and stufe == 2:
+                stufe2_fragen = Stufe2Fragen(samples).get_fragen()
         else:
             # Farbverteilung (Original): Generiere Prozent-Histogramm
             if distribution_type not in Verteilung.available():
                 distribution_type = "normal"
-            samples = Verteilung.generate(distribution_type, N=50)
-            print(f"📊 Generated COLOR samples (0-100): {samples[:5]}")
+            # Entferne feste N=50, nutze Standard-N der Verteilung
+            samples = Verteilung.generate(distribution_type)
+            print(f"📊 Generated COLOR samples (0-100): len={len(samples)} head={samples[:5]}")
             level_info = None
             stufe1_fragen = None
         
@@ -98,6 +110,8 @@ def start_session(request: StartSessionRequest):
             response["level_info"] = level_info.dict()
         if stufe1_fragen:
             response["stufe1_fragen"] = stufe1_fragen
+        if 'stufe2_fragen' in locals() and stufe2_fragen:
+            response["stufe2_fragen"] = stufe2_fragen
         return response
     except Exception as e:
         print("Error in start_session:", e)
@@ -118,13 +132,15 @@ def set_distribution(data: SetDistributionRequest):
         raise HTTPException(status_code=404, detail="Session nicht gefunden")
     
     if game_mode == "number":
-        if distribution_type not in ZahlenVerteilung.available():
+        if distribution_type not in VerteilungMain.available():
             raise HTTPException(status_code=400, detail="Unbekannte Verteilung")
-        samples = ZahlenVerteilung.generate(distribution_type, N=50)
+        # Entferne feste N=50, nutze Standard-N von VerteilungMain
+        samples = VerteilungMain.generate(distribution_type)
     else:
         if distribution_type not in Verteilung.available():
             raise HTTPException(status_code=400, detail="Unbekannte Verteilung")
-        samples = Verteilung.generate(distribution_type, N=50)
+        # Entferne feste N=50, nutze Standard-N der Verteilung
+        samples = Verteilung.generate(distribution_type)
     
     SESSIONS[session_id]["distribution_type"] = distribution_type
     SESSIONS[session_id]["game_mode"] = game_mode
@@ -137,8 +153,8 @@ def available_distributions(game_mode: Optional[str] = "color"):
     """Gibt Liste der verfügbaren Verteilungen zurück"""
     if game_mode == "number":
         return {
-            "distributions": ZahlenVerteilung.available(),
-            "descriptions": ZahlenVerteilung.descriptions(),
+            "distributions": VerteilungMain.available(),
+            "descriptions": VerteilungMain.descriptions(),
             "game_mode": "number"
         }
     return {
@@ -180,6 +196,32 @@ def solve(data: SolveData):
 
 
 class W1S1EvaluateRequest(BaseModel):
+
+    # --- W1S2 Freitext-Auswertung ---
+    class W1S2EvaluateRequest(BaseModel):
+        session_id: str
+        antworten: list[str]
+
+    @app.post("/evaluate-w1s2")
+    def evaluate_w1s2(data: W1S2EvaluateRequest):
+        """Evaluate Welt1 Stufe2 Freitext-Antworten auf dem Backend.
+        Verwendet die gespeicherten Samples, erzeugt die Fragen erneut und wertet mit W1S2Evaluation aus.
+        """
+        sid = data.session_id
+        if sid not in SESSIONS:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Get generated samples for this session
+        generated = SESSIONS.get(sid, {}).get("distributions", {}).get("generated", {})
+        samples = generated.get("samples")
+        if not samples:
+            raise HTTPException(status_code=400, detail="No generated distribution for session")
+
+        # Recreate the Stufe2 questions and evaluate
+        fragen = Stufe2Fragen(samples).get_fragen()
+        evaluator = W1S2Evaluation(fragen, data.antworten)
+        result = evaluator.evaluate()
+        return {"status": "ok", "evaluation": result}
     session_id: str
     antworten: List[int]
 

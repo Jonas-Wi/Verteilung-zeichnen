@@ -1,9 +1,9 @@
 from zahlenevaluation.zahlen_evaluator import ZahlenEvaluator
 
-class Stufe1Fragen:
+class Stufe2Fragen:
     """
-    Enthält alle Multiple-Choice-Fragen für Welt 1, Stufe 1.
-    Jede Frage ist ein Dictionary mit 'frage', 'optionen', 'korrekt'.
+    Enthält alle Multiple-Choice-Fragen für Welt 1, Stufe 2.
+    Jede Frage ist ein Dictionary mit 'frage', 'korrekt'.
     """
     def __init__(self, ground_truth: list):
         # Erzeuge ZahlenEvaluator für die Ground-Truth-Verteilung
@@ -24,35 +24,22 @@ class Stufe1Fragen:
         self.fragen = [
             {
                 'frage': 'Welche Zahl hast du am häufigsten gesehen?',
-                'optionen': [
-                    str(max(0, self.peak_idx - 1)),
-                    str(self.peak_idx),
-                    str(min(20, self.peak_idx + 1))
-                ],
                 'korrekt': str(self.peak_idx)
             },
             {
                 'frage': f'Wie oft (ungefähr) kam diese Zahl vor?',
-                'optionen': [str(max(1, self.peak_count - 2)), str(self.peak_count), str(self.peak_count + 2)],
                 'korrekt': str(self.peak_count)
             },
             {
                 'frage': 'Welche Zahl hast du am zweithäufigsten gesehen?',
-                'optionen': [
-                    str(self.second_peak_idx) if self.second_peak_idx is not None else '0',
-                    str(max(0, self.peak_idx - 2)),
-                    str(min(20, self.peak_idx + 2))
-                ],
                 'korrekt': str(self.second_peak_idx) if self.second_peak_idx is not None else None
             },
             {
                 'frage': 'Wie viele verschiedene Zahlen hast du gesehen?',
-                'optionen': [str(max(1, self.distinct_count - 1)), str(self.distinct_count), str(self.distinct_count + 1)],
                 'korrekt': str(self.distinct_count)
             },
             {
                 'frage': 'Was war die höchste Zahl?',
-                'optionen': [str(max(0, max(ground_truth)-1)), str(max(ground_truth)), str(min(20, max(ground_truth)+1))],
                 'korrekt': str(max(ground_truth))
             }
         ]

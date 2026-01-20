@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import GameCommon from "./GameCommon";
 import { NumberDistributionVisualizer } from "../visualizer/NumberDistributionVisualizer";
 import W1S1MultipleChoice from "../visualizer/w1s1.jsx";
+import W1S2Freitext from "../visualizer/w1s2.jsx";
 
 export default function NumberGame(props) {
 	const { sessionId, level, onRestartGame } = props;
@@ -21,6 +22,8 @@ export default function NumberGame(props) {
 		const distributionRef = useRef(null);
 	const [stufe1Fragen, setStufe1Fragen] = useState([]);
 	const [stufe1Antworten, setStufe1Antworten] = useState([]);
+	const [stufe2Fragen, setStufe2Fragen] = useState([]);
+	const [stufe2Antworten, setStufe2Antworten] = useState([]);
 
 	// Callback für Spielende: Zeige Visualizer/Fragen
 	const handleGameEnd = (payload) => {
@@ -123,20 +126,31 @@ export default function NumberGame(props) {
 		}
 	}, [gameActive, sessionId, blockMode, level]);
 
-	// Fragen für Stufe 1 aus level_info laden, wenn vorhanden
+
+	// Fragen für Stufe 1 und 2 aus level_info laden, wenn vorhanden
 	useEffect(() => {
-		if (!gameActive && level && level.welt === 1 && level.stufe === 1 && props.stufe1_fragen) {
-			setStufe1Fragen(props.stufe1_fragen);
+		if (!gameActive && level && level.welt === 1) {
+			if (level.stufe === 1 && props.stufe1_fragen) {
+				setStufe1Fragen(props.stufe1_fragen);
+			}
+			if (level.stufe === 2 && props.stufe2_fragen) {
+				setStufe2Fragen(props.stufe2_fragen);
+			}
 		}
-	}, [gameActive, level, props.stufe1_fragen]);
+	}, [gameActive, level, props.stufe1_fragen, props.stufe2_fragen]);
+
 
 	function handleStufe1Fertig(antworten) {
 		setStufe1Antworten(antworten);
 		setPreRevealStage('revealDone');
 	}
+	function handleStufe2Fertig(antworten) {
+		setStufe2Antworten(antworten);
+		setPreRevealStage('revealDone');
+	}
 
 	// Dynamische UI je nach InputMode
-	const inputMode = visualizerRef.current?.getInputMode ? visualizerRef.current.getInputMode() : (level && level.welt === 1 && level.stufe === 1 ? 'multiple-choice' : (level && level.welt === 1 && level.stufe === 2 ? 'single-question' : 'full-draw'));
+	const inputMode = visualizerRef.current?.getInputMode ? visualizerRef.current.getInputMode() : (level && level.welt === 1 && level.stufe === 1 ? 'multiple-choice' : (level && level.welt === 1 && level.stufe === 2 ? 'freitext' : 'full-draw'));
 
 	return (
 		<div>
@@ -158,6 +172,9 @@ export default function NumberGame(props) {
 						{/* Fragen-Flow je nach Modus */}
 						{inputMode === 'multiple-choice' && stufe1Fragen.length > 0 && preRevealStage !== 'revealDone' ? (
 							<W1S1MultipleChoice sessionId={sessionId} fragen={stufe1Fragen} onAntwortenFertig={handleStufe1Fertig} />
+						) : null}
+						{inputMode === 'freitext' && stufe2Fragen.length > 0 && preRevealStage !== 'revealDone' ? (
+							<W1S2Freitext sessionId={sessionId} fragen={stufe2Fragen} onAntwortenFertig={handleStufe2Fertig} />
 						) : null}
 						{inputMode !== 'multiple-choice' && preRevealStage && preRevealStage !== 'ready' && preRevealStage !== 'revealDone' && (
 							<div className="mb-3 p-3 bg-white border-2 border-gray-300 rounded-lg max-w-md text-gray-800">
@@ -184,12 +201,12 @@ export default function NumberGame(props) {
 										{preRevealStage === 'askPeakFrequency' && (
 											<div>
 												<div className="font-bold mb-2">Wie oft (ungefähr) kam der Wert {guessPeakValue} vor?</div>
-												<div className="text-sm text-gray-600 mb-2">Tipp: Es gab insgesamt 50 Ballons</div>
+												<div className="text-sm text-gray-600 mb-2">Tipp: Es gab insgesamt {distributionRef.current ? distributionRef.current.length : '?'} Ballons</div>
 												<div className="flex items-center gap-2">
 													<input
 														type="number"
 														min={0}
-														max={50}
+														max={distributionRef.current ? distributionRef.current.length : 50}
 														value={peakFrequencyInput}
 														onChange={(e) => setPeakFrequencyInput(e.target.value)}
 														className="px-3 py-2 border rounded w-28"
@@ -242,12 +259,12 @@ export default function NumberGame(props) {
 										{preRevealStage === 'askPeakFrequency' && (
 											<div>
 												<div className="font-bold mb-2">Wie oft (ungefähr) kam der Wert {guessPeakValue} vor?</div>
-												<div className="text-sm text-gray-600 mb-2">Tipp: Es gab insgesamt 50 Ballons</div>
+												<div className="text-sm text-gray-600 mb-2">Tipp: Es gab insgesamt {distributionRef.current ? distributionRef.current.length : '?'} Ballons</div>
 												<div className="flex items-center gap-2">
 													<input
 														type="number"
 														min={0}
-														max={50}
+														max={distributionRef.current ? distributionRef.current.length : 50}
 														value={peakFrequencyInput}
 														onChange={(e) => setPeakFrequencyInput(e.target.value)}
 														className="px-3 py-2 border rounded w-28"
@@ -284,7 +301,7 @@ export default function NumberGame(props) {
 													<input
 														type="number"
 														min={0}
-														max={50}
+														max={distributionRef.current ? distributionRef.current.length : 50}
 														value={additionalFreqInput}
 														onChange={(e) => setAdditionalFreqInput(e.target.value)}
 														className="px-3 py-2 border rounded w-20"

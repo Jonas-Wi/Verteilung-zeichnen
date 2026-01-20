@@ -6,7 +6,7 @@
 export class BalloonSpawner {
   /**
    * Constructor
-  * @param {Array<number>} distribution - Array von 50 Werten (0-100 für Farbmodus, 0-20 für Zahlenmodus)
+   * @param {Array<number>} distribution - Array von n Werten (0-100 für Farbmodus, 0-20 für Zahlenmodus)
    */
   constructor(distribution) {
     this.distribution = distribution || [];
@@ -18,13 +18,13 @@ export class BalloonSpawner {
   /**
    * Gibt den Ballonwert zurück, der für einen Block spawnen soll
    * Jeder Block spawnt GENAU einen Ballon mit seinem Verteilungswert
-  * @param {number} blockIndex - Index des Blocks (0-49)
+  * @param {number} blockIndex - Index des Blocks (0 bis n-1)
   * @returns {number} Der Wert für diesen Block
    */
   getBalloonsForBlock(blockIndex) {
     if (blockIndex < 0) {
       console.warn('Invalid block index:', blockIndex);
-      return 50;
+      return this.distribution.length > 0 ? this.distribution[0] : 0;
     }
 
     // If we have prepared per-block colors, use them
@@ -37,7 +37,11 @@ export class BalloonSpawner {
       return this.distribution[blockIndex];
     }
 
-    return 50; // default
+    // Fallback: Mittelwert der Verteilung oder 0
+    if (this.distribution && this.distribution.length > 0) {
+      return this.distribution.reduce((a, b) => a + b, 0) / this.distribution.length;
+    }
+    return 0; // default
   }
 
   /**
@@ -50,7 +54,7 @@ export class BalloonSpawner {
 
     const dist = this.distribution || [];
     
-    // Wenn Distribution bereits die richtige Länge hat (50 Werte), nutze sie direkt
+    // Wenn Distribution bereits die richtige Länge hat, nutze sie direkt
     if (dist.length === this.blockCount) {
       this.blockColors = dist.slice(); // Direkte Kopie der Werte
       return;
@@ -95,7 +99,9 @@ export class BalloonSpawner {
       }
       // if colors length less/more, adjust
       if (colors.length < this.blockCount) {
-        while (colors.length < this.blockCount) colors.push(50);
+        // Fülle mit Mittelwert
+        const mean = dist.length > 0 ? dist.reduce((a, b) => a + b, 0) / dist.length : 0;
+        while (colors.length < this.blockCount) colors.push(mean);
       } else if (colors.length > this.blockCount) {
         colors.length = this.blockCount;
       }
@@ -111,7 +117,9 @@ export class BalloonSpawner {
     }
 
     // Fallback: create uniform mid-gray
-    this.blockColors = new Array(this.blockCount).fill(50);
+    // Fallback: Fülle mit Mittelwert
+    const mean = dist.length > 0 ? dist.reduce((a, b) => a + b, 0) / dist.length : 0;
+    this.blockColors = new Array(this.blockCount).fill(mean);
   }
 
   /**

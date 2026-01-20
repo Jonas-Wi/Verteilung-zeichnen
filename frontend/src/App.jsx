@@ -11,6 +11,7 @@ export default function App() {
   const [maeResult, setMaeResult] = useState(null);
   const [gameMode, setGameMode] = useState("color"); // "color" oder "number"
   const [stufe1Fragen, setStufe1Fragen] = useState(null);
+  const [stufe2Fragen, setStufe2Fragen] = useState(null);
 
   const canvasRef = useRef(null);
   const drawing = useRef(false);
@@ -57,6 +58,7 @@ export default function App() {
         setMaeResult(null);
         setPlayerBins(new Array(101).fill(0));
         setStufe1Fragen(json.stufe1_fragen || null);
+        setStufe2Fragen(json.stufe2_fragen || null);
       }
     } catch (e) {
       console.error("Failed to start session:", e);
@@ -77,7 +79,7 @@ export default function App() {
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    // draw ground truth as gray bars (nicht-kumulierte Wahrscheinlichkeiten, z.B. 50 Werte)
+    // draw ground truth as gray bars (nicht-kumulierte Wahrscheinlichkeiten, z.B. n Werte)
     if (groundTruth && groundTruth.length > 0) {
       const N = groundTruth.length;
       const maxGT = Math.max(1, ...groundTruth);
@@ -158,10 +160,11 @@ export default function App() {
     }
   }
 
-  function expandBinsToSamples(bins) {
+  function expandBinsToSamples(bins, maxCount = null) {
     const samples = [];
-    for (let i = 0; i <= 100; i++) {
-      const count = Math.max(0, Math.min(50, Math.round(bins[i]))); 
+    const limit = maxCount !== null ? maxCount : Math.max(...bins);
+    for (let i = 0; i < bins.length; i++) {
+      const count = Math.max(0, Math.min(limit, Math.round(bins[i])));
       for (let k = 0; k < count; k++) samples.push(i);
     }
     return samples;
@@ -239,6 +242,7 @@ export default function App() {
               onGameEnd={onGameEnd}
               onRestartGame={() => startGame(gameMode)}
               stufe1_fragen={stufe1Fragen}
+              stufe2_fragen={stufe2Fragen}
             />
           )}
         </div>

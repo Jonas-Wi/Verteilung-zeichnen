@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from "react";
 import Phaser from "phaser";
 import { BalloonSpawner } from "../BalloonSpawner";
@@ -31,6 +30,7 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 				const js = await res.json();
 				if (js && js.distribution && js.distribution.samples) {
 					distributionRef.current = js.distribution.samples;
+					console.log('[GameCommon] fetched distribution length:', distributionRef.current.length);
 				}
 			} catch (e) {
 				console.warn('Failed to fetch generated distribution', e);
@@ -40,7 +40,7 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 		class MainScene extends Phaser.Scene {
 			constructor() {
 				super({ key: "MainScene" });
-				this.timer = 5; // Sekunden (angepasst)
+				this.timer = 20; // Sekunden (angepasst)
 				this.distribution = null;
 				this.blockValues = [];
 				this.balloonSpawner = null;
@@ -79,6 +79,7 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 				this.blocksGroup = this.physics.add.staticGroup();
 				this.physics.add.collider(this.ball, this.paddle, this.handlePaddleBounce, null, this);
 				this.distribution = distributionRef.current || [];
+				console.log('[GameCommon] scene create, gameMode=', this.gameMode, 'distribution length=', this.distribution.length);
 				this.balloonSpawner = new BalloonSpawner(this.distribution);
 				this.createBlocks();
 				this.balloonsList = [];
@@ -146,8 +147,11 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 				this.spawnBalloon(spawnX, spawnY, balloonValue);
 			}
 			createBlocks() {
-				const rows = 5;
-				const cols = 10;
+				const n = this.distribution.length;
+				if (n === 0) return;
+				// Möglichst quadratische Anordnung
+				const cols = Math.ceil(Math.sqrt(n));
+				const rows = Math.ceil(n / cols);
 				const blockW = Math.floor((800 - 2 * 80 - (cols - 1) * 6) / cols);
 				const blockH = Math.floor((180 - 2 * 20 - (rows - 1) * 6) / rows);
 				const startX = 80 + blockW / 2;
@@ -156,22 +160,22 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 				let sampleIndex = 0;
 				for (let r = 0; r < rows; r++) {
 					for (let c = 0; c < cols; c++) {
+						if (sampleIndex >= n) break;
 						const x = startX + c * (blockW + 6);
 						const y = startY + r * (blockH + 6);
 						const color = 0x888888;
 						const rect = this.add.rectangle(x, y, blockW, blockH, color).setOrigin(0.5, 0.5);
 						this.physics.add.existing(rect, true);
 						this.blocksGroup.add(rect);
-						const value = this.distribution[sampleIndex % this.distribution.length];
+						const value = this.distribution[sampleIndex];
 						rect.__balloonValue = value;
 						this.blocks.push(rect);
 						this.blockIndexMap.set(rect, sampleIndex);
 						sampleIndex++;
 					}
 				}
-				const total = rows * cols;
 				if (this.balloonSpawner && typeof this.balloonSpawner.prepare === 'function') {
-					this.balloonSpawner.prepare(total);
+					this.balloonSpawner.prepare(n);
 				}
 				if (onBlocksReady) {
 					onBlocksReady(this.blocks);
@@ -200,7 +204,7 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 				}
 				this.balloonsGroup.add(balloon);
 				this.balloonsList.push(balloon);
-				const MAX_BALLOONS = 50;
+				const MAX_BALLOONS = this.distribution.length > 0 ? this.distribution.length : 50;
 				while (this.balloonsList.length > MAX_BALLOONS) {
 					const old = this.balloonsList.shift();
 					try { if (old.__label) old.__label.destroy(); } catch (e) {}
