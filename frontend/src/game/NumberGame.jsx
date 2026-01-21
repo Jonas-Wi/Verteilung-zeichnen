@@ -3,6 +3,7 @@ import GameCommon from "./GameCommon";
 import { NumberDistributionVisualizer } from "../visualizer/NumberDistributionVisualizer";
 import W1S1MultipleChoice from "../visualizer/w1s1.jsx";
 import W1S2Freitext from "../visualizer/w1s2.jsx";
+import W1S3Questions from "../visualizer/w1s3.jsx";
 
 export default function NumberGame(props) {
 	const { sessionId, level, onRestartGame } = props;
@@ -18,6 +19,8 @@ export default function NumberGame(props) {
 	const [additionalValueInput, setAdditionalValueInput] = useState("");
 	const [additionalFreqInput, setAdditionalFreqInput] = useState("");
 	const [comparisonInput, setComparisonInput] = useState("");
+	const [neighborLeftCountInput, setNeighborLeftCountInput] = useState("");
+	const [neighborRightCountInput, setNeighborRightCountInput] = useState("");
 	const canvasRef = useRef(null);
 	const visualizerRef = useRef(null);
 		const distributionRef = useRef(null);
@@ -52,6 +55,8 @@ export default function NumberGame(props) {
 		setAdditionalValueInput('');
 		setAdditionalFreqInput('');
 		setComparisonInput('');
+		setNeighborLeftCountInput('');
+		setNeighborRightCountInput('');
 		setEvaluationResult(null);
 	};
 
@@ -115,6 +120,19 @@ export default function NumberGame(props) {
 			alert('Bitte beantworte die Vergleichsfrage (ja/nein).');
 			return;
 		}
+		// Stufe 3: Zusätzlich zwei Zählfragen (peak-1, peak+1) müssen beantwortet werden
+		if (isStufe3) {
+			const leftVal = Number(neighborLeftCountInput);
+			const rightVal = Number(neighborRightCountInput);
+			if (!Number.isFinite(leftVal) || leftVal < 0) {
+				alert('Bitte gib eine gültige Anzahl für Hochpunkt−1 an (≥ 0).');
+				return;
+			}
+			if (!Number.isFinite(rightVal) || rightVal < 0) {
+				alert('Bitte gib eine gültige Anzahl für Hochpunkt+1 an (≥ 0).');
+				return;
+			}
+		}
 
 		if (visualizerRef.current && distributionRef.current) {
 			visualizerRef.current.drawAxes(distributionRef.current);
@@ -128,10 +146,13 @@ export default function NumberGame(props) {
 				});
 				const truePeakIdx = histogram.indexOf(Math.max(...histogram));
 				const truePeakCount = histogram[truePeakIdx];
-				// Zeige nur den echten Hochpunkt
-				visualizerRef.current.drawMultiplePeakMarkers([
-					{ value: truePeakIdx, frequency: truePeakCount }
-				]);
+				// Zeige Hochpunkt sowie links/rechts daneben
+				const leftIdx = Math.max(0, truePeakIdx - 1);
+				const rightIdx = Math.min(20, truePeakIdx + 1);
+				const markers = [{ value: truePeakIdx, frequency: truePeakCount }];
+				if (leftIdx !== truePeakIdx) markers.push({ value: leftIdx, frequency: histogram[leftIdx] });
+				if (rightIdx !== truePeakIdx) markers.push({ value: rightIdx, frequency: histogram[rightIdx] });
+				visualizerRef.current.drawMultiplePeakMarkers(markers);
 			} else {
 				// Für andere Level: Zeige alle geratenen Peaks
 				const allPeakValues = [guessPeakValue, ...additionalPeaks.map(p => p.value)];
@@ -150,7 +171,9 @@ export default function NumberGame(props) {
 				peak_value: guessPeakValue,
 				peak_frequency: guessPeakFrequency,
 				additional_peaks: additionalPeaks,
-				comparison_answer: comparisonInput || null
+				comparison_answer: comparisonInput || null,
+				neighbor_left_count: (isStufe3 ? Number(neighborLeftCountInput) : null),
+				neighbor_right_count: (isStufe3 ? Number(neighborRightCountInput) : null)
 			});
 		}
 		setPreRevealStage('ready');
@@ -198,6 +221,49 @@ export default function NumberGame(props) {
 		setStufe1Antworten(antworten);
 		setPreRevealStage('revealDone');
 	}
+
+	function handleStufe3Fertig(antworten) {
+		// Antworten: [peak_value, peak_frequency, comparison(ja/nein), left_count, right_count]
+		const peakVal = Number(antworten?.[0]);
+		const peakFreq = Number(antworten?.[1]);
+		const comparison = (antworten?.[2] || '').toString();
+		const leftCount = Number(antworten?.[3]);
+		const rightCount = Number(antworten?.[4]);
+		if (visualizerRef.current && distributionRef.current) {
+			visualizerRef.current.drawAxes(distributionRef.current);
+			// Echten Hochpunkt berechnen und anzeigen (wie zuvor)
+			const histogram = new Array(21).fill(0);
+			distributionRef.current.forEach(v => {
+				const val = Math.max(0, Math.min(20, Math.round(v)));
+				histogram[val]++;
+			});
+			const truePeakIdx = histogram.indexOf(Math.max(...histogram));
+			const truePeakCount = histogram[truePeakIdx];
+			// Zeige Hochpunkt sowie links/rechts daneben
+			const leftIdxSt3 = Math.max(0, truePeakIdx - 1);
+			const rightIdxSt3 = Math.min(20, truePeakIdx + 1);
+			const markersSt3 = [{ value: truePeakIdx, frequency: truePeakCount }];
+			if (leftIdxSt3 !== truePeakIdx) markersSt3.push({ value: leftIdxSt3, frequency: histogram[leftIdxSt3] });
+			if (rightIdxSt3 !== truePeakIdx) markersSt3.push({ value: rightIdxSt3, frequency: histogram[rightIdxSt3] });
+			visualizerRef.current.drawMultiplePeakMarkers(markersSt3);
+			// Zeichne zusätzlich graue Balken basierend auf den zuvor eingegebenen Schätzungen
+			visualizerRef.current.drawGuessBars([
+				{ value: truePeakIdx, frequency: peakFreq },
+				{ value: leftIdxSt3, frequency: leftCount },
+				{ value: rightIdxSt3, frequency: rightCount }
+			]);
+			visualizerRef.current.setPreRevealAnswers({
+				peak_value: peakVal,
+				peak_frequency: peakFreq,
+				additional_peaks: [],
+				comparison_answer: comparison || null,
+				neighbor_left_count: leftCount,
+				neighbor_right_count: rightCount
+			});
+		}
+		setPreRevealStage('ready');
+		visualizerRef.current?.setDrawMode(true);
+	}
 	function handleStufe2Fertig(antworten) {
 		setStufe2Antworten(antworten);
 		setPreRevealStage('revealDone');
@@ -232,7 +298,11 @@ export default function NumberGame(props) {
 						{inputMode === 'freitext' && stufe2Fragen.length > 0 && preRevealStage !== 'revealDone' ? (
 							<W1S2Freitext sessionId={sessionId} fragen={stufe2Fragen} onAntwortenFertig={handleStufe2Fertig} />
 						) : null}
-						{inputMode !== 'multiple-choice' && inputMode !== 'freitext' && inputMode !== 'full-draw-no-questions' && preRevealStage && preRevealStage !== 'ready' && preRevealStage !== 'revealDone' && (
+						{/* Stufe 3: zeige Fragen+Auswertung vor dem Zeichnen */}
+						{inputMode !== 'multiple-choice' && inputMode !== 'freitext' && inputMode !== 'full-draw-no-questions' && preRevealStage && preRevealStage !== 'ready' && preRevealStage !== 'revealDone' && level && level.welt === 1 && level.stufe === 3 ? (
+							<W1S3Questions sessionId={sessionId} fragen={currentStufeFragen || []} onAntwortenFertig={handleStufe3Fertig} />
+						) : null}
+						{inputMode !== 'multiple-choice' && inputMode !== 'freitext' && inputMode !== 'full-draw-no-questions' && preRevealStage && preRevealStage !== 'ready' && preRevealStage !== 'revealDone' && !(level && level.welt === 1 && level.stufe === 3) && (
 							<div className="mb-3 p-3 bg-white border-2 border-gray-300 rounded-lg max-w-md text-gray-800">
 								{/* Multiple-Choice: Nur Peak-Wert und Häufigkeit */}
 								{inputMode === 'multiple-choice' && (
@@ -332,7 +402,7 @@ export default function NumberGame(props) {
 										)}
 										{preRevealStage === 'askAdditionalPeaks' && (
 											<div>
-												{(level && level.welt === 1 && (level.stufe === 3 || level.stufe === 4)) ? (
+												{(level && level.welt === 1 && (level.stufe === 4)) ? (
 													<>
 														<div className="font-bold mb-2">{currentStufeFragen?.[2]?.frage || 'War der Wert rechts vom Hochpunkt häufiger? (ja/nein)'}</div>
 														<div className="flex items-center gap-2">
@@ -343,6 +413,34 @@ export default function NumberGame(props) {
 																className="px-3 py-2 border rounded w-32"
 																placeholder="ja/nein"
 															/>
+														</div>
+														{(level && level.welt === 1 && level.stufe === 3) && (
+															<div className="mt-4 space-y-3">
+																<div>
+																	<div className="font-bold mb-1">{currentStufeFragen?.[3]?.frage || 'Wie oft hast du die Zahl (Hochpunkt−1) gesehen?'}</div>
+																	<input
+																		type="number"
+																		min={0}
+																		value={neighborLeftCountInput}
+																		onChange={(e) => setNeighborLeftCountInput(e.target.value)}
+																		className="px-3 py-2 border rounded w-32"
+																		placeholder="Anzahl"
+																	/>
+																</div>
+																<div>
+																	<div className="font-bold mb-1">{currentStufeFragen?.[4]?.frage || 'Wie oft hast du die Zahl (Hochpunkt+1) gesehen?'}</div>
+																	<input
+																		type="number"
+																		min={0}
+																		value={neighborRightCountInput}
+																		onChange={(e) => setNeighborRightCountInput(e.target.value)}
+																		className="px-3 py-2 border rounded w-32"
+																		placeholder="Anzahl"
+																	/>
+																</div>
+															</div>
+														)}
+														<div className="flex items-center gap-2 mt-3">
 															<button 
 																onClick={handleFinishAdditionalPeaks} 
 																className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"

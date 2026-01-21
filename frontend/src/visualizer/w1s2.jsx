@@ -4,6 +4,7 @@ import React, { useState } from "react";
 export default function W1S2Freitext({ sessionId, fragen, onAntwortenFertig }) {
     const [antworten, setAntworten] = useState(Array(fragen.length).fill(""));
     const [ergebnis, setErgebnis] = useState(null);
+    const [step, setStep] = useState(1); // Schritt 1: Fragen 0-1, Schritt 2: Fragen 2-4
 
     const handleAntwort = (frageIdx, value) => {
         const newAntworten = [...antworten];
@@ -11,7 +12,17 @@ export default function W1S2Freitext({ sessionId, fragen, onAntwortenFertig }) {
         setAntworten(newAntworten);
     };
 
+    const handleWeiter = () => {
+        // Prüfe nur die ersten zwei Antworten
+        if ((antworten[0] ?? "") === "" || (antworten[1] ?? "") === "") {
+            alert("Bitte zuerst die ersten zwei Fragen beantworten.");
+            return;
+        }
+        setStep(2);
+    };
+
     const handleFertig = () => {
+        // In Schritt 2 müssen alle Fragen beantwortet sein
         if (!antworten.every((a) => a !== "")) {
             alert("Bitte alle Fragen beantworten.");
             return;
@@ -51,28 +62,58 @@ export default function W1S2Freitext({ sessionId, fragen, onAntwortenFertig }) {
 
     return (
         <div className="flex flex-col items-center">
-            <h2 className="text-lg font-bold mb-4">Beantworte die folgenden Fragen:</h2>
-            {fragen.map((frageObj, idx) => (
-                <div key={idx} className="mb-4 w-full max-w-md">
-                    <div className="font-bold mb-2">{frageObj.frage}</div>
-                    <input
-                        type="text"
-                        className="border rounded px-3 py-1 w-full text-black bg-white"
-                        value={antworten[idx]}
-                        onChange={e => handleAntwort(idx, e.target.value)}
-                        placeholder="Antwort eingeben"
-                        disabled={!!ergebnis}
-                    />
-                </div>
-            ))}
+            <h2 className="text-lg font-bold mb-4">
+                {step === 1 ? "Beantworte zuerst die ersten zwei Fragen:" : "Beantworte nun die restlichen drei Fragen:"}
+            </h2>
+
+            {/* Schritt 1: nur Fragen 0 und 1 */}
+            {step === 1 && (
+                [0,1].map((idx) => (
+                    <div key={idx} className="mb-4 w-full max-w-md">
+                        <div className="font-bold mb-2">{fragen[idx]?.frage}</div>
+                        <input
+                            type="text"
+                            className="border rounded px-3 py-1 w-full text-black bg-white"
+                            value={antworten[idx]}
+                            onChange={e => handleAntwort(idx, e.target.value)}
+                            placeholder="Antwort eingeben"
+                            disabled={!!ergebnis}
+                        />
+                    </div>
+                ))
+            )}
+
+            {/* Schritt 2: nur Fragen 2 bis Ende */}
+            {step === 2 && (
+                fragen.slice(2).map((frageObj, localIdx) => {
+                    const idx = localIdx + 2;
+                    return (
+                        <div key={idx} className="mb-4 w-full max-w-md">
+                            <div className="font-bold mb-2">{frageObj.frage}</div>
+                            <input
+                                type="text"
+                                className="border rounded px-3 py-1 w-full text-black bg-white"
+                                value={antworten[idx]}
+                                onChange={e => handleAntwort(idx, e.target.value)}
+                                placeholder="Antwort eingeben"
+                                disabled={!!ergebnis}
+                            />
+                        </div>
+                    );
+                })
+            )}
+
             <div className="mt-4">
                 {!ergebnis ? (
-                    <button
-                        className="px-4 py-2 bg-green-600 text-white rounded"
-                        onClick={handleFertig}
-                    >
-                        Bewerten
-                    </button>
+                    step === 1 ? (
+                        <button className="px-4 py-2 bg-blue-600 text-white rounded" onClick={handleWeiter}>
+                            Weiter
+                        </button>
+                    ) : (
+                        <button className="px-4 py-2 bg-green-600 text-white rounded" onClick={handleFertig}>
+                            Bewerten
+                        </button>
+                    )
                 ) : (
                     <div className="w-full max-w-md bg-gray-800 p-4 rounded">
                         <div className="text-center font-bold text-lg mb-2">Ergebnis</div>
@@ -87,10 +128,7 @@ export default function W1S2Freitext({ sessionId, fragen, onAntwortenFertig }) {
                             ))}
                         </div>
                         <div className="mt-3 text-center">
-                            <button
-                                className="px-4 py-2 bg-blue-600 text-white rounded"
-                                onClick={() => onAntwortenFertig(antworten)}
-                            >
+                            <button className="px-4 py-2 bg-blue-600 text-white rounded" onClick={() => onAntwortenFertig(antworten)}>
                                 Weiter
                             </button>
                         </div>

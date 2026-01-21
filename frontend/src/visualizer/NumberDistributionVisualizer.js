@@ -3,6 +3,8 @@ import { BaseDistributionVisualizer } from "./BaseDistributionVisualizer";
 export class NumberDistributionVisualizer extends BaseDistributionVisualizer {
   constructor(canvas, sessionId = null, level = null) {
     super(canvas, sessionId, "number", level);
+    this.overlayMarkers = [];
+    this.overlayGuessBars = [];
   }
 
 
@@ -80,6 +82,14 @@ export class NumberDistributionVisualizer extends BaseDistributionVisualizer {
     this.ctx.fillText("10", left + plotW / 2, bottom + 55);
     this.ctx.textAlign = "right";
     this.ctx.fillText("20", right, bottom + 55);
+
+    // Re-draw overlays (guess bars and peak markers) after axes
+    if (this.overlayGuessBars && this.overlayGuessBars.length > 0) {
+      this.drawGuessBars(this.overlayGuessBars);
+    }
+    if (this.overlayMarkers && this.overlayMarkers.length > 0) {
+      this.drawMultiplePeakMarkers(this.overlayMarkers);
+    }
   }
 
   drawPeakMarker(peakValue, frequency) {
@@ -117,6 +127,8 @@ export class NumberDistributionVisualizer extends BaseDistributionVisualizer {
 
   drawMultiplePeakMarkers(peaks) {
     if (!peaks || peaks.length === 0) return;
+    // Persist markers so they remain visible when axes redraw
+    this.overlayMarkers = peaks.slice();
     peaks.forEach(peak => {
       this.drawPeakMarker(peak.value, peak.frequency);
     });
@@ -153,6 +165,37 @@ export class NumberDistributionVisualizer extends BaseDistributionVisualizer {
       this.ctx.font = 'bold 11px Arial';
       this.ctx.textAlign = 'center';
       this.ctx.fillText(`✓ ${count}x`, xPos + barWidth * 0.4, yPos - 5);
+    });
+    this.ctx.restore();
+  }
+
+  // Zeichnet graue Balken für vom Spieler eingegebene Schätzungen
+  // guesses: Array von { value: number (0-20), frequency: number }
+  drawGuessBars(guesses, colorFill = 'rgba(150,150,150,0.5)', colorStroke = 'rgba(120,120,120,0.9)') {
+    if (!guesses || guesses.length === 0) return;
+    // Persist guess bars for redraws
+    this.overlayGuessBars = guesses.slice();
+    const left = 50;
+    const right = this.canvasWidth - 50;
+    const top = 20;
+    const bottom = this.canvasHeight - 60;
+    const plotW = right - left;
+    const plotH = bottom - top;
+    const maxY = this.numberModeMaxY || 10;
+    this.ctx.save();
+    guesses.forEach(g => {
+      if (!g || typeof g.value !== 'number' || typeof g.frequency !== 'number') return;
+      const val = Math.max(0, Math.min(20, Math.round(g.value)));
+      const freq = Math.max(0, g.frequency);
+      const barWidth = plotW / 21;
+      const xPos = left + val * barWidth;
+      const barHeight = (freq / maxY) * plotH;
+      const yPos = bottom - barHeight;
+      this.ctx.fillStyle = colorFill;
+      this.ctx.fillRect(xPos, yPos, barWidth * 0.8, barHeight);
+      this.ctx.strokeStyle = colorStroke;
+      this.ctx.lineWidth = 2;
+      this.ctx.strokeRect(xPos, yPos, barWidth * 0.8, barHeight);
     });
     this.ctx.restore();
   }
