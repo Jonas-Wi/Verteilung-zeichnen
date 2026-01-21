@@ -274,6 +274,44 @@ def evaluate_w1s1(data: W1S1EvaluateRequest):
     return {"status": "ok", "evaluation": result}
 
 
+# --- W1S3 Freitext-/Vergleichs-Auswertung vor dem Zeichnen ---
+class W1S3EvaluateRequest(BaseModel):
+    session_id: str
+    antworten: list[str]
+
+@app.post("/evaluate-w1s3")
+def evaluate_w1s3(data: W1S3EvaluateRequest):
+    """Evaluate Welt1 Stufe3 fünf Fragen vor dem Zeichnen.
+
+    Rekonstruiert Fragen und bewertet nur die Fragen-Komponente.
+    """
+    sid = data.session_id
+    if sid not in SESSIONS:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    generated = SESSIONS.get(sid, {}).get("distributions", {}).get("generated", {})
+    samples = generated.get("samples")
+    if not samples:
+        raise HTTPException(status_code=400, detail="No generated distribution for session")
+
+    stufe3_obj = Stufe3Fragen(samples)
+    fragen = stufe3_obj.get_fragen()
+    ground_truth_histogram = stufe3_obj.get_ground_truth_histogram()
+    # Player drawn histogram ist vor dem Zeichnen leer -> gleiche Länge mit Nullen
+    player_drawn_histogram = [0] * len(ground_truth_histogram)
+
+    evaluator = W1S3Evaluation(fragen, data.antworten, ground_truth_histogram, player_drawn_histogram)
+    result = evaluator.evaluate()
+    # Nur Fragen-Ergebnis zurückgeben (Frontend zeigt Fragenbewertung)
+    filtered = {
+        "results": result.get("results"),
+        "correct_count": result.get("correct_count"),
+        "total": result.get("total"),
+        "questions_score": result.get("questions_score"),
+    }
+    return {"status": "ok", "evaluation": filtered}
+
+
 # --- Distribution endpoints (scaffold) ---
 class DistributionSave(BaseModel):
     session_id: str

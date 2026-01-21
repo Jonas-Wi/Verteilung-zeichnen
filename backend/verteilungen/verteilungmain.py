@@ -122,11 +122,11 @@ class VerteilungMain:
         """
         if welt == 1:
             # Für Welt 1 differenziert nach Stufe
-            if stufe == 3 or stufe == 4:
-                return cls.create_w1_stufe3_values(N=20)
-            if stufe == 5:
-                return cls.create_w1_stufe5_values(N=40)
-            # ältere einfache Variante für niedrigere Stufen
+          # if stufe == 3 or stufe == 4:
+          #      return cls.create_w1_stufe3_values(N=20)
+          #  if stufe == 5:
+          #      return cls.create_w1_stufe5_values(N=40)
+            # ältere einfache Variante für niedrigere Stufen 
             return generate_w1_normalverteilung()
         name = (name or "").lower()
         if name == "normal":

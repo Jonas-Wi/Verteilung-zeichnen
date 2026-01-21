@@ -20,12 +20,15 @@ class Stufe3Fragen:
         # Vergleiche mu+2 (rechts) mit mu-1 (links) - beide haben mittlere Häufigkeit
         idx_mu_minus_1 = max(0, self.peak_idx - 1)
         idx_mu_plus_2 = min(20, self.peak_idx + 2)
+        idx_mu_plus_1 = min(20, self.peak_idx + 1)
+        
         count_mu_minus_1 = self.counts[idx_mu_minus_1] if idx_mu_minus_1 < len(self.counts) else 0
         count_mu_plus_2 = self.counts[idx_mu_plus_2] if idx_mu_plus_2 < len(self.counts) else 0
+        count_mu_plus_1 = self.counts[idx_mu_plus_1] if idx_mu_plus_1 < len(self.counts) else 0
         
         value_left = self.peak_idx - 1
-        value_right = self.peak_idx + 2
-        comparison_result = "ja" if count_mu_plus_2 > count_mu_minus_1 else "nein"
+        value_right = self.peak_idx + 1
+        comparison_result = "ja" if count_mu_plus_1 > count_mu_minus_1 else "nein"
         
         self.fragen = [
             {
@@ -33,13 +36,22 @@ class Stufe3Fragen:
                 'korrekt': str(self.peak_idx)
             },
             {
-                'frage': f'Wie oft (ungefähr) kam diese Zahl vor?',
+                'frage': f'Wie oft hast du die Zahl {self.peak_idx} gesehen?',
                 'korrekt': str(self.peak_count)
             },
             {
                 'frage': f'Kam die Zahl {value_right} häufiger vor als die Zahl {value_left}? (ja/nein)',
                 'korrekt': comparison_result
+            },
+            {
+                'frage': f'Wie oft hast du die Zahl {value_left} gesehen?',
+                'korrekt': str(count_mu_minus_1)
+            },
+            {
+                'frage': f'Wie oft hast du die Zahl {value_right} gesehen?',
+                'korrekt': str(count_mu_plus_1)
             }
+            
         ]
 
     def get_fragen(self):

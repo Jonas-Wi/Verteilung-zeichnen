@@ -1,10 +1,15 @@
 """W1S3Evaluation
 
 Evaluiert die Freitext-Antworten der Welt 1, Stufe 3 Fragen sowie die gezeichnete Verteilung.
-- 50% Gewichtung für die 3 Fragen
-- 50% Gewichtung für die gezeichnete Verteilung (RMSE-basiert)
+- Fragen: 70% Gewichtung
+- Zeichnung: 30% Gewichtung (primär über ZahlenEvaluator; Fallback RMSE)
 """
 from typing import List, Dict, Any
+from zahlenevaluation.zahlen_evaluator import ZahlenEvaluator
+try:
+    from . import HistogrammEvaluator as _he
+except ImportError:
+    import zahlenevaluation.HistogrammEvaluator as _he
 import math
 
 class W1S3Evaluation:
@@ -26,6 +31,22 @@ class W1S3Evaluation:
         self.antworten = antworten or []
         self.ground_truth_histogram = ground_truth_histogram or []
         self.player_drawn_histogram = player_drawn_histogram or []
+
+    def _normalize_hist(self, counts: List[int]) -> List[float]:
+        s = sum(counts)
+        if s <= 0:
+            return [0.0] * len(counts)
+        return [c / s for c in counts]
+
+    def _expand_hist_to_samples(self, counts: List[int]) -> List[int]:
+        """Erzeugt eine Sample-Liste aus Histogramm-Counts (Index i wiederholt count[i] Mal)."""
+        samples: List[int] = []
+        if not counts:
+            return samples
+        for i, c in enumerate(counts):
+            if c and c > 0:
+                samples.extend([i] * int(c))
+        return samples
 
     def _calculate_rmse(self) -> float:
         """
@@ -67,15 +88,18 @@ class W1S3Evaluation:
 
     def evaluate(self) -> Dict[str, Any]:
         """
-        Evaluiert die 3 Fragen (50%) und die gezeichnete Verteilung (50%).
+        Evaluiert die 5 Fragen (70%) und die gezeichnete Verteilung (30%).
         
         Returns a dict with:
         - results: list of {frage_idx, selected_value, korrekt, is_correct}
         - questions_score (0..1)
         - rmse: Root Mean Squared Error der Zeichnung
         - drawing_score (0..1)
-        - score: Final Score (0..1) = 0.5 * questions_score + 0.5 * drawing_score
-        - passed (bool, threshold 0.6)
+        - peak_value_score, peak_frequency_score, additional_peaks_score (0..1)
+        - mae, wasserstein_distance, abs_mean_error (Rohmetriken)
+        - mae_score, wasserstein_score, mean_error_score (0..1)
+        - score: Final Score (0..100) für UI-Anzeige
+        - passed (bool)
         """
         # --- Bewertung der 3 Fragen ---
         results = []
@@ -116,20 +140,90 @@ class W1S3Evaluation:
         questions_score = correct_count / total if total > 0 else 0.0
         
         # --- Bewertung der gezeichneten Verteilung ---
+        # Primär über ZahlenEvaluator (wie im Zahlenspiel üblich);
+        # Fallback: RMSE-basierte Bewertung, wenn keine Daten vorliegen.
+        # Primäre Zeichnungsbewertung über HistogrammEvaluator
         rmse = self._calculate_rmse()
         drawing_score = self._normalize_rmse_to_score(rmse)
+        extra_metrics: Dict[str, Any] = {}
+
+        if self.ground_truth_histogram and self.player_drawn_histogram and (
+            len(self.ground_truth_histogram) == len(self.player_drawn_histogram)
+        ):
+            try:
+                he = _he.HistogrammEvaluator(self.ground_truth_histogram, self.player_drawn_histogram)
+                he_res = he.evaluate()
+                # Übernehme RMSE/Wasserstein und Zeichnungs-Score aus HistogrammEvaluator
+                if he_res.get("rmse") is not None:
+                    rmse = float(he_res.get("rmse"))
+                if he_res.get("drawing_score") is not None:
+                    drawing_score = float(he_res.get("drawing_score"))
+                extra_metrics.update({
+                    "wasserstein_distance": he_res.get("wasserstein_distance"),
+                    "wasserstein_score": he_res.get("wasserstein_score"),
+                    # rmse_score optional für Debug
+                    "rmse_score": he_res.get("rmse_score"),
+                })
+            except Exception:
+                # Fallback: bleibe bei vorher berechnetem RMSE-basiertem drawing_score
+                pass
+
+            # Ergänze MAE und Mean-Error Metriken (für UI), aus normalisierten Histogrammen
+            gt_n = self._normalize_hist(self.ground_truth_histogram)
+            pl_n = self._normalize_hist(self.player_drawn_histogram)
+            if gt_n and pl_n and len(gt_n) == len(pl_n):
+                mae = sum(abs(g - p) for g, p in zip(gt_n, pl_n)) / len(gt_n)
+                mae_score = max(0.0, 1.0 - min(1.0, mae))
+                mean_gt = sum(i * g for i, g in enumerate(gt_n))
+                mean_pl = sum(i * p for i, p in enumerate(pl_n))
+                abs_mean_error = abs(mean_gt - mean_pl)
+                mean_error_score = max(0.0, 1.0 - min(1.0, abs_mean_error / 20.0))
+                extra_metrics.update({
+                    "mae": round(mae, 4),
+                    "mae_score": round(mae_score, 3),
+                    "abs_mean_error": round(abs_mean_error, 2),
+                    "mean_error_score": round(mean_error_score, 3),
+                })
+
+        # Optional: Pre-Reveal Teilmetriken über ZahlenEvaluator (nur zur Anzeige)
+        try:
+            gt_samples = self._expand_hist_to_samples(self.ground_truth_histogram)
+            player_samples = self._expand_hist_to_samples(self.player_drawn_histogram)
+            if gt_samples and player_samples:
+                ze = ZahlenEvaluator(ground_truth=gt_samples, player_values=player_samples)
+                ev_pre = ze.evaluate()
+                extra_metrics.update({
+                    "peak_value_score": ev_pre.get("peak_value_score"),
+                    "peak_frequency_score": ev_pre.get("peak_frequency_score"),
+                    "additional_peaks_score": ev_pre.get("additional_peaks_score"),
+                })
+        except Exception:
+            pass
         
-        # --- Finaler Score (50/50) ---
-        final_score = 0.5 * questions_score + 0.5 * drawing_score
-        passed = final_score >= 0.6
+        # --- Finaler Score (70/30) ---
+        final_score_ratio = 0.7 * questions_score + 0.3 * drawing_score
+        # Für die UI wird erwartet, dass "score" ein Prozentwert (0-100) ist.
+        # Wenn ZahlenEvaluator verfügbar ist, übernehmen wir dessen Prozent-Score,
+        # ansonsten skalieren wir unseren Ratio-Score selbst.
+        final_score_percent = max(0, min(100, int(round(final_score_ratio * 100))))
+        passed = final_score_percent >= 60
         
-        return {
+        out: Dict[str, Any] = {
             "results": results,
             "correct_count": correct_count,
             "total": total,
             "questions_score": questions_score,
             "rmse": rmse,
             "drawing_score": drawing_score,
-            "score": final_score,
-            "passed": passed
+            # Prozentwert für UI
+            "score": final_score_percent,
+            "passed": passed,
+            # Zusätzlich das Verhältnis (0..1) für mögliche interne Nutzung
+            "final_score_ratio": round(final_score_ratio, 3)
         }
+
+        # Ergänze Detail-Metriken, wenn aus ZahlenEvaluator vorhanden
+        if extra_metrics:
+            out.update({k: v for k, v in extra_metrics.items() if v is not None})
+
+        return out
