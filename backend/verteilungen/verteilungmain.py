@@ -36,8 +36,34 @@ class VerteilungMain:
         return values[:N]
 
     @classmethod
-    def create_uniform_values(cls, N=40) -> List[int]:
-        return cls.create_normal_values(N)
+    def create_w1_stufe3_values(cls, N=20) -> List[int]:
+        """Erzeugt eine Normalverteilung für Welt1/Stufe3 mit 5 Werten um den Hochpunkt (mu-2, mu-1, mu, mu+1, mu+2)."""
+        mu = random.randint(2, 18)  # Hochpunkt zwischen 2-18, damit mu±2 noch in 0-20 passen
+        vals = []
+        five_values = [mu - 2, mu - 1, mu, mu + 1, mu + 2]
+        # Verteilung der Häufigkeiten: mehr beim Hochpunkt, weniger an den Rändern
+        # Insgesamt 20 Werte
+        counts = [2, 4, 8, 4, 2]
+        for val, count in zip(five_values, counts):
+            val = max(0, min(20, val))  # Clamp auf 0-20
+            vals.extend([val] * count)
+        random.shuffle(vals)
+        return vals
+
+    @classmethod
+    def create_w1_stufe5_values(cls, N=40) -> List[int]:
+        """Erzeugt eine Normalverteilung für Welt1/Stufe5 mit 7 Werten um den Hochpunkt (mu-3 bis mu+3)."""
+        mu = random.randint(3, 17)  # Hochpunkt zwischen 3-17, damit mu±3 in 0-20 passt
+        vals = []
+        seven_values = [mu - 3, mu - 2, mu - 1, mu, mu + 1, mu + 2, mu + 3]
+        # Verteilung der Häufigkeiten: Normalverteilung mit mehr beim Hochpunkt
+        # Insgesamt 40 Werte
+        counts = [2, 5, 7, 12, 7, 5, 2]  # Summe = 40
+        for val, count in zip(seven_values, counts):
+            val = max(0, min(20, val))  # Clamp auf 0-20
+            vals.extend([val] * count)
+        random.shuffle(vals)
+        return vals
 
     @classmethod
     def create_bimodal_values(cls, N=40) -> List[int]:
@@ -92,10 +118,15 @@ class VerteilungMain:
     def generate(cls, name: str, N: int = 40, welt: int = None, stufe: int = None) -> List[int]:
         """
         Generiert N Zahlenwerte (0-20) nach der gewählten Verteilung.
-        Wenn welt==1, wird die spezielle Verteilung aus w1.py verwendet.
+        Wenn welt==1, wird die spezielle Verteilung aus w1.py verwendet, angepasst nach Stufe.
         """
         if welt == 1:
-            # Welt 1 nutzt die spezielle Verteilung aus w1.py und bestimmt N dort.
+            # Für Welt 1 differenziert nach Stufe
+            if stufe == 3 or stufe == 4:
+                return cls.create_w1_stufe3_values(N=20)
+            if stufe == 5:
+                return cls.create_w1_stufe5_values(N=40)
+            # ältere einfache Variante für niedrigere Stufen
             return generate_w1_normalverteilung()
         name = (name or "").lower()
         if name == "normal":

@@ -17,6 +17,7 @@ export default function NumberGame(props) {
 	const [additionalPeaks, setAdditionalPeaks] = useState([]);
 	const [additionalValueInput, setAdditionalValueInput] = useState("");
 	const [additionalFreqInput, setAdditionalFreqInput] = useState("");
+	const [comparisonInput, setComparisonInput] = useState("");
 	const canvasRef = useRef(null);
 	const visualizerRef = useRef(null);
 		const distributionRef = useRef(null);
@@ -24,19 +25,33 @@ export default function NumberGame(props) {
 	const [stufe1Antworten, setStufe1Antworten] = useState([]);
 	const [stufe2Fragen, setStufe2Fragen] = useState([]);
 	const [stufe2Antworten, setStufe2Antworten] = useState([]);
+	const [stufe3Fragen, setStufe3Fragen] = useState([]);
+	const [stufe4Fragen, setStufe4Fragen] = useState([]);
+	const [stufe5Fragen, setStufe5Fragen] = useState([]);
 
 	// Callback für Spielende: Zeige Visualizer/Fragen
 	const handleGameEnd = (payload) => {
 		distributionRef.current = payload.distribution;
 		setGameActive(false);
-		setPreRevealStage('askPeakValue');
-		setGuessPeakValue(null);
-		setGuessPeakFrequency(null);
+		
+		// Stufe 5: Direkt zum Zeichnen ohne Fragen
+		if (level && level.welt === 1 && level.stufe === 5) {
+			setPreRevealStage('ready');
+			setGuessPeakValue(null);
+			setGuessPeakFrequency(null);
+			setAdditionalPeaks([]);
+		} else {
+			setPreRevealStage('askPeakValue');
+			setGuessPeakValue(null);
+			setGuessPeakFrequency(null);
+		}
+		
 		setPeakValueInput('');
 		setPeakFrequencyInput('');
 		setAdditionalPeaks([]);
 		setAdditionalValueInput('');
 		setAdditionalFreqInput('');
+		setComparisonInput('');
 		setEvaluationResult(null);
 	};
 
@@ -92,21 +107,51 @@ export default function NumberGame(props) {
 			}
 			return;
 		}
-		// Standardfall: Zeichnen wie gehabt
+
+		// Welt 1, Stufe 3/4: Vergleichsfrage statt zusätzlicher Peaks
+		const isStufe3 = level && level.welt === 1 && level.stufe === 3;
+		const isStufe4 = level && level.welt === 1 && level.stufe === 4;
+		if ((isStufe3 || isStufe4) && comparisonInput.trim() === '') {
+			alert('Bitte beantworte die Vergleichsfrage (ja/nein).');
+			return;
+		}
+
 		if (visualizerRef.current && distributionRef.current) {
 			visualizerRef.current.drawAxes(distributionRef.current);
-			const allPeakValues = [guessPeakValue, ...additionalPeaks.map(p => p.value)];
-			const allPeaks = [
-				{ value: guessPeakValue, frequency: guessPeakFrequency },
-				...additionalPeaks
-			];
+			
+			// Für Stufe 3: Berechne den echten Hochpunkt aus der ground_truth
+			if (isStufe3) {
+				const histogram = new Array(21).fill(0);
+				distributionRef.current.forEach(v => {
+					const val = Math.max(0, Math.min(20, Math.round(v)));
+					histogram[val]++;
+				});
+				const truePeakIdx = histogram.indexOf(Math.max(...histogram));
+				const truePeakCount = histogram[truePeakIdx];
+				// Zeige nur den echten Hochpunkt
+				visualizerRef.current.drawMultiplePeakMarkers([
+					{ value: truePeakIdx, frequency: truePeakCount }
+				]);
+			} else {
+				// Für andere Level: Zeige alle geratenen Peaks
+				const allPeakValues = [guessPeakValue, ...additionalPeaks.map(p => p.value)];
+				const allPeaks = [
+					{ value: guessPeakValue, frequency: guessPeakFrequency },
+					...additionalPeaks
+				];
+				// In Stufe 4 keine echten Hinweis-Balken/Marker zeigen
+				if (!isStufe4) {
+					visualizerRef.current.drawTruthBarsForValues(distributionRef.current, allPeakValues);
+					visualizerRef.current.drawMultiplePeakMarkers(allPeaks);
+				}
+			}
+			
 			visualizerRef.current.setPreRevealAnswers({
 				peak_value: guessPeakValue,
 				peak_frequency: guessPeakFrequency,
-				additional_peaks: additionalPeaks
+				additional_peaks: additionalPeaks,
+				comparison_answer: comparisonInput || null
 			});
-			visualizerRef.current.drawTruthBarsForValues(distributionRef.current, allPeakValues);
-			visualizerRef.current.drawMultiplePeakMarkers(allPeaks);
 		}
 		setPreRevealStage('ready');
 		visualizerRef.current?.setDrawMode(true);
@@ -136,8 +181,17 @@ export default function NumberGame(props) {
 			if (level.stufe === 2 && props.stufe2_fragen) {
 				setStufe2Fragen(props.stufe2_fragen);
 			}
+			if (level.stufe === 3 && props.stufe3_fragen) {
+				setStufe3Fragen(props.stufe3_fragen);
+			}
+			if (level.stufe === 4 && props.stufe4_fragen) {
+				setStufe4Fragen(props.stufe4_fragen);
+			}
+			if (level.stufe === 5 && props.stufe5_fragen) {
+				setStufe5Fragen(props.stufe5_fragen);
+			}
 		}
-	}, [gameActive, level, props.stufe1_fragen, props.stufe2_fragen]);
+	}, [gameActive, level, props.stufe1_fragen, props.stufe2_fragen, props.stufe3_fragen, props.stufe4_fragen, props.stufe5_fragen]);
 
 
 	function handleStufe1Fertig(antworten) {
@@ -147,10 +201,12 @@ export default function NumberGame(props) {
 	function handleStufe2Fertig(antworten) {
 		setStufe2Antworten(antworten);
 		setPreRevealStage('revealDone');
-	}
+	}(level && level.welt === 1 && level.stufe === 5 ? 'full-draw-no-questions' : 'full-draw')
 
 	// Dynamische UI je nach InputMode
 	const inputMode = visualizerRef.current?.getInputMode ? visualizerRef.current.getInputMode() : (level && level.welt === 1 && level.stufe === 1 ? 'multiple-choice' : (level && level.welt === 1 && level.stufe === 2 ? 'freitext' : 'full-draw'));
+	// Verwende direkt die Props statt lokale States für Stufe 3/4
+	const currentStufeFragen = level && level.welt === 1 && level.stufe === 3 ? (props.stufe3_fragen || stufe3Fragen) : (level && level.welt === 1 && level.stufe === 4 ? (props.stufe4_fragen || stufe4Fragen) : []);
 
 	return (
 		<div>
@@ -165,7 +221,7 @@ export default function NumberGame(props) {
 					{inputMode === 'single-question' && (
 						<h2 className="text-center text-xl font-bold mb-4">Beantworte die aktuelle Frage</h2>
 					)}
-					{inputMode === 'full-draw' && (
+					{(inputMode === 'full-draw' || inputMode === 'full-draw-no-questions') && (
 						<h2 className="text-center text-xl font-bold mb-4">Zeichne die Zahlenverteilung (0-20)</h2>
 					)}
 					<div className="flex flex-col items-center">
@@ -176,7 +232,7 @@ export default function NumberGame(props) {
 						{inputMode === 'freitext' && stufe2Fragen.length > 0 && preRevealStage !== 'revealDone' ? (
 							<W1S2Freitext sessionId={sessionId} fragen={stufe2Fragen} onAntwortenFertig={handleStufe2Fertig} />
 						) : null}
-						{inputMode !== 'multiple-choice' && preRevealStage && preRevealStage !== 'ready' && preRevealStage !== 'revealDone' && (
+						{inputMode !== 'multiple-choice' && inputMode !== 'freitext' && inputMode !== 'full-draw-no-questions' && preRevealStage && preRevealStage !== 'ready' && preRevealStage !== 'revealDone' && (
 							<div className="mb-3 p-3 bg-white border-2 border-gray-300 rounded-lg max-w-md text-gray-800">
 								{/* Multiple-Choice: Nur Peak-Wert und Häufigkeit */}
 								{inputMode === 'multiple-choice' && (
@@ -241,7 +297,7 @@ export default function NumberGame(props) {
 									<>
 										{preRevealStage === 'askPeakValue' && (
 											<div>
-												<div className="font-bold mb-2">Welchen Zahlenwert hast du am häufigsten gesehen? (0-20)</div>
+												<div className="font-bold mb-2">{currentStufeFragen?.[0]?.frage || 'Welchen Zahlenwert hast du am häufigsten gesehen? (0-20)'}</div>
 												<div className="flex items-center gap-2">
 													<input
 														type="number"
@@ -258,7 +314,7 @@ export default function NumberGame(props) {
 										)}
 										{preRevealStage === 'askPeakFrequency' && (
 											<div>
-												<div className="font-bold mb-2">Wie oft (ungefähr) kam der Wert {guessPeakValue} vor?</div>
+												<div className="font-bold mb-2">{currentStufeFragen?.[1]?.frage || `Wie oft (ungefähr) kam der Wert ${guessPeakValue} vor?`}</div>
 												<div className="text-sm text-gray-600 mb-2">Tipp: Es gab insgesamt {distributionRef.current ? distributionRef.current.length : '?'} Ballons</div>
 												<div className="flex items-center gap-2">
 													<input
@@ -276,50 +332,73 @@ export default function NumberGame(props) {
 										)}
 										{preRevealStage === 'askAdditionalPeaks' && (
 											<div>
-												<div className="font-bold mb-2">Hast du noch andere Zahlenwerte häufig gesehen?</div>
-												<div className="text-sm text-gray-600 mb-3">Gib weitere markante Werte an (optional)</div>
-												{additionalPeaks.length > 0 && (
-													<div className="mb-3 p-2 bg-gray-100 rounded">
-														<div className="text-sm font-semibold mb-1">Hinzugefügt:</div>
-														{additionalPeaks.map((peak, idx) => (
-															<div key={idx} className="text-sm">
-																• Wert {peak.value}: {peak.frequency}x
+												{(level && level.welt === 1 && (level.stufe === 3 || level.stufe === 4)) ? (
+													<>
+														<div className="font-bold mb-2">{currentStufeFragen?.[2]?.frage || 'War der Wert rechts vom Hochpunkt häufiger? (ja/nein)'}</div>
+														<div className="flex items-center gap-2">
+															<input
+																type="text"
+																value={comparisonInput}
+																onChange={(e) => setComparisonInput(e.target.value)}
+																className="px-3 py-2 border rounded w-32"
+																placeholder="ja/nein"
+															/>
+															<button 
+																onClick={handleFinishAdditionalPeaks} 
+																className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+															>
+																Weiter zum Zeichnen
+															</button>
+														</div>
+													</>
+												) : (
+													<>
+														<div className="font-bold mb-2">Hast du noch andere Zahlenwerte häufig gesehen?</div>
+														<div className="text-sm text-gray-600 mb-3">Gib weitere markante Werte an (optional)</div>
+														{additionalPeaks.length > 0 && (
+															<div className="mb-3 p-2 bg-gray-100 rounded">
+																<div className="text-sm font-semibold mb-1">Hinzugefügt:</div>
+																{additionalPeaks.map((peak, idx) => (
+																	<div key={idx} className="text-sm">
+																		• Wert {peak.value}: {peak.frequency}x
+																	</div>
+																))}
 															</div>
-														))}
-													</div>
+														)}
+														<div className="flex items-center gap-2 mb-2">
+															<input
+																type="number"
+																min={0}
+																max={20}
+																value={additionalValueInput}
+																onChange={(e) => setAdditionalValueInput(e.target.value)}
+																className="px-3 py-2 border rounded w-20"
+																placeholder="Wert"
+															/>
+															<input
+																type="number"
+																min={0}
+																max={distributionRef.current ? distributionRef.current.length : 50}
+																value={additionalFreqInput}
+																onChange={(e) => setAdditionalFreqInput(e.target.value)}
+																className="px-3 py-2 border rounded w-20"
+																placeholder="Anzahl"
+															/>
+															<button 
+																onClick={handleAddAdditionalPeak} 
+																className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+															>
+																+ Hinzufügen
+															</button>
+														</div>
+														<button 
+															onClick={handleFinishAdditionalPeaks} 
+															className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 mt-2"
+														>
+															Fertig - Zum Zeichnen
+														</button>
+													</>
 												)}
-												<div className="flex items-center gap-2 mb-2">
-													<input
-														type="number"
-														min={0}
-														max={20}
-														value={additionalValueInput}
-														onChange={(e) => setAdditionalValueInput(e.target.value)}
-														className="px-3 py-2 border rounded w-20"
-														placeholder="Wert"
-													/>
-													<input
-														type="number"
-														min={0}
-														max={distributionRef.current ? distributionRef.current.length : 50}
-														value={additionalFreqInput}
-														onChange={(e) => setAdditionalFreqInput(e.target.value)}
-														className="px-3 py-2 border rounded w-20"
-														placeholder="Anzahl"
-													/>
-													<button 
-														onClick={handleAddAdditionalPeak} 
-														className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-													>
-														+ Hinzufügen
-													</button>
-												</div>
-												<button 
-													onClick={handleFinishAdditionalPeaks} 
-													className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 mt-2"
-												>
-													Fertig - Zum Zeichnen
-												</button>
 											</div>
 										)}
 									</>
@@ -327,13 +406,13 @@ export default function NumberGame(props) {
 							</div>
 						)}
 						{/* Canvas und Visualizer nur bei full-draw anzeigen */}
-						{inputMode === 'full-draw' && (
+						{(inputMode === 'full-draw' || inputMode === 'full-draw-no-questions') && (
 							<canvas ref={canvasRef} width={530} height={370} className="mx-auto border-2 border-gray-300 bg-white cursor-crosshair" />
 						)}
 					</div>
 					<div className="text-center mt-4 flex justify-center flex-wrap gap-2">
 						{/* Buttons nur anzeigen, wenn Zeichnen erlaubt ist */}
-						{inputMode === 'full-draw' && !evaluationResult ? (
+						{(inputMode === 'full-draw' || inputMode === 'full-draw-no-questions') && !evaluationResult ? (
 							<>
 								<button 
 									onClick={() => visualizerRef.current?.clear()}
@@ -370,7 +449,7 @@ export default function NumberGame(props) {
 									Evaluieren
 								</button>
 							</>
-						) : inputMode === 'full-draw' ? (
+						) : (inputMode === 'full-draw' || inputMode === 'full-draw-no-questions') ? (
 							<>
 								<button 
 									onClick={() => {
@@ -395,6 +474,7 @@ export default function NumberGame(props) {
 										setAdditionalPeaks([]);
 										setAdditionalValueInput('');
 										setAdditionalFreqInput('');
+										setComparisonInput('');
 										if (onRestartGame) {
 											onRestartGame();
 										}

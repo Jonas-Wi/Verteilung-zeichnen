@@ -12,6 +12,9 @@ export default function App() {
   const [gameMode, setGameMode] = useState("color"); // "color" oder "number"
   const [stufe1Fragen, setStufe1Fragen] = useState(null);
   const [stufe2Fragen, setStufe2Fragen] = useState(null);
+  const [stufe3Fragen, setStufe3Fragen] = useState(null);
+  const [stufe4Fragen, setStufe4Fragen] = useState(null);
+  const [stufe5Fragen, setStufe5Fragen] = useState(null);
 
   const canvasRef = useRef(null);
   const drawing = useRef(false);
@@ -42,14 +45,17 @@ export default function App() {
         setSessionId(json.session_id);
         // Debug: Logge die Level-Infos aus dem Backend
         console.log("LEVEL-INFO aus Backend:", json.level_info, "current_level:", json.current_level);
+        console.log("🔍 FULL RESPONSE JSON:", json);
         // Level-Objekt aus Backend (level_info) oder fallback
         if (json.level_info && typeof json.level_info === 'object') {
+          console.log("✅ Level aus level_info gesetzt:", json.level_info.welt, json.level_info.stufe);
           setLevel(json.level_info);
         } else if (json.current_level && typeof json.current_level === 'object') {
           setLevel(json.current_level);
         } else if (typeof json.current_level === 'number') {
           setLevel({ welt: 1, stufe: json.current_level });
         } else {
+          // Fallback: Setze Default-Level (sollte vom Backend kommen)
           setLevel({ welt: 1, stufe: 1 });
         }
         setGameMode(json.game_mode || mode);
@@ -59,6 +65,9 @@ export default function App() {
         setPlayerBins(new Array(101).fill(0));
         setStufe1Fragen(json.stufe1_fragen || null);
         setStufe2Fragen(json.stufe2_fragen || null);
+        setStufe3Fragen(json.stufe3_fragen || null);
+        setStufe4Fragen(json.stufe4_fragen || null);
+        setStufe5Fragen(json.stufe5_fragen || null);
       }
     } catch (e) {
       console.error("Failed to start session:", e);
@@ -243,6 +252,9 @@ export default function App() {
               onRestartGame={() => startGame(gameMode)}
               stufe1_fragen={stufe1Fragen}
               stufe2_fragen={stufe2Fragen}
+              stufe3_fragen={stufe3Fragen}
+              stufe5_fragen={stufe5Fragen}
+              stufe4_fragen={stufe4Fragen}
             />
           )}
         </div>

@@ -29,6 +29,7 @@ export class BaseDistributionVisualizer {
     if (!this.level) return 'full-draw';
     if (this.level.welt === 1 && this.level.stufe === 1) return 'multiple-choice';
     if (this.level.welt === 1 && this.level.stufe === 2) return 'single-question';
+    if (this.level.welt === 1 && this.level.stufe === 5) return 'full-draw-no-questions';
     return 'full-draw';
   }
 

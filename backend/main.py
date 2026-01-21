@@ -11,7 +11,12 @@ from evaluator import DistributionEvaluator
 from zahlenevaluation.zahlen_evaluator import ZahlenEvaluator
 from fragen.stufe1 import Stufe1Fragen
 from fragen.stufe2 import Stufe2Fragen
+from fragen.stufe3 import Stufe3Fragen
+from fragen.stufe4 import Stufe4Fragen
+from fragen.stufe5 import Stufe5Fragen
 from zahlenevaluation.w1s2evaluation import W1S2Evaluation
+from zahlenevaluation.w1s3evaluation import W1S3Evaluation
+from zahlenevaluation.w1s4evaluation import W1S4Evaluation
 from fragen.stufe2 import Stufe2Fragen
 from zahlenevaluation import W1S1Evaluation
 
@@ -64,6 +69,7 @@ def start_session(request: StartSessionRequest):
             level_defaults = Level()
             welt = level_defaults.welt
             stufe = level_defaults.stufe
+            print(f"🎮 DEBUG: Level-Defaults: welt={welt}, stufe={stufe}")
             n = getattr(request, "n", None)
             if distribution_type not in VerteilungMain.available():
                 distribution_type = "normal"
@@ -74,13 +80,25 @@ def start_session(request: StartSessionRequest):
                 samples = VerteilungMain.generate(distribution_type, N=n if n is not None else 40, welt=welt, stufe=stufe)
             print(f"📊 Generated NUMBER samples (0-20): len={len(samples)} head={samples[:5]}")
             level_info = Level(welt=welt, stufe=stufe)
-            # --- NEU: Fragen für Welt 1, Stufe 1 generieren ---
+            # --- NEU: Fragen für Welt 1, Stufe 1/2/3/4/5 generieren ---
             stufe1_fragen = None
             stufe2_fragen = None
+            stufe3_fragen = None
+            stufe4_fragen = None
+            stufe5_fragen = None
             if welt == 1 and stufe == 1:
                 stufe1_fragen = Stufe1Fragen(samples).get_fragen()
             if welt == 1 and stufe == 2:
                 stufe2_fragen = Stufe2Fragen(samples).get_fragen()
+            if welt == 1 and stufe == 3:
+                stufe3_obj = Stufe3Fragen(samples)
+                stufe3_fragen = stufe3_obj.get_fragen()
+            if welt == 1 and stufe == 4:
+                stufe4_obj = Stufe4Fragen(samples)
+                stufe4_fragen = stufe4_obj.get_fragen()
+            if welt == 1 and stufe == 5:
+                stufe5_obj = Stufe5Fragen(samples)
+                stufe5_fragen = stufe5_obj.get_fragen()
         else:
             # Farbverteilung (Original): Generiere Prozent-Histogramm
             if distribution_type not in Verteilung.available():
@@ -112,6 +130,12 @@ def start_session(request: StartSessionRequest):
             response["stufe1_fragen"] = stufe1_fragen
         if 'stufe2_fragen' in locals() and stufe2_fragen:
             response["stufe2_fragen"] = stufe2_fragen
+        if 'stufe5_fragen' in locals() and stufe5_fragen:
+            response["stufe5_fragen"] = stufe5_fragen
+        if 'stufe3_fragen' in locals() and stufe3_fragen:
+            response["stufe3_fragen"] = stufe3_fragen
+        if 'stufe4_fragen' in locals() and stufe4_fragen:
+            response["stufe4_fragen"] = stufe4_fragen
         return response
     except Exception as e:
         print("Error in start_session:", e)
