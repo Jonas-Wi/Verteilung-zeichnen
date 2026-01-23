@@ -1,8 +1,8 @@
 """W1S4Evaluation
 
-Evaluiert die Freitext-Antworten der Welt 1, Stufe 4 Fragen sowie die gezeichnete Verteilung.
-- 50% Gewichtung für die 3 Fragen
-- 50% Gewichtung für die gezeichnete Verteilung (RMSE-basiert)
+Evaluiert die Freitext-Antworten der Welt 1, Stufe 4 Fragen.
+- 100% Gewichtung für die 5 Fragen
+- Die gezeichnete Verteilung wird NICHT bewertet
 Unterschied zu Stufe 3: Keine visuellen Anhaltspunkte (blind zeichnen)
 """
 from typing import List, Dict, Any
@@ -68,17 +68,17 @@ class W1S4Evaluation:
 
     def evaluate(self) -> Dict[str, Any]:
         """
-        Evaluiert die 3 Fragen (50%) und die gezeichnete Verteilung (50%).
+        Evaluiert die 5 Fragen (100%).
         
         Returns a dict with:
         - results: list of {frage_idx, selected_value, korrekt, is_correct}
         - questions_score (0..1)
-        - rmse: Root Mean Squared Error der Zeichnung
-        - drawing_score (0..1)
-        - score: Final Score (0..1) = 0.5 * questions_score + 0.5 * drawing_score
+        - rmse: Root Mean Squared Error der Zeichnung (nur informativ)
+        - drawing_score (0..1) (nur informativ)
+        - score: Final Score (0..1) = questions_score
         - passed (bool, threshold 0.6)
         """
-        # --- Bewertung der 3 Fragen ---
+        # --- Bewertung der 5 Fragen ---
         results = []
         correct_count = 0
         total = len(self.fragen)
@@ -89,8 +89,8 @@ class W1S4Evaluation:
             is_correct = False
             
             if korrekt is not None and selected_value is not None:
-                # Für die 3. Frage: Ja/Nein Vergleich
-                if idx == 2:
+                # Für die 3. und 5. Frage: Ja/Nein Vergleich
+                if idx == 2 or idx == 4:
                     sv = str(selected_value).strip().lower()
                     kv = str(korrekt).strip().lower()
                     yes = {'ja', 'yes', 'y', 'true', '1'}
@@ -116,12 +116,12 @@ class W1S4Evaluation:
         
         questions_score = correct_count / total if total > 0 else 0.0
         
-        # --- Bewertung der gezeichneten Verteilung ---
+        # --- Bewertung der gezeichneten Verteilung (nur informativ) ---
         rmse = self._calculate_rmse()
         drawing_score = self._normalize_rmse_to_score(rmse)
         
-        # --- Finaler Score (50/50) ---
-        final_score = 0.5 * questions_score + 0.5 * drawing_score
+        # --- Finaler Score (100% Fragen) ---
+        final_score = questions_score
         passed = final_score >= 0.6
         
         return {

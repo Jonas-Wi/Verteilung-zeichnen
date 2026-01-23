@@ -40,7 +40,7 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 		class MainScene extends Phaser.Scene {
 			constructor() {
 				super({ key: "MainScene" });
-			this.timer = 5; // Sekunden (angepasst)
+			this.timer = 20; // Sekunden (angepasst)
 				this.distribution = null;
 				this.blockValues = [];
 				this.balloonSpawner = null;

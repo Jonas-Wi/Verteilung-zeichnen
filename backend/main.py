@@ -119,6 +119,11 @@ def start_session(request: StartSessionRequest):
             SESSIONS[session_id]["level_info"] = level_info.dict()
         SESSIONS[session_id].setdefault("distributions", {})
         SESSIONS[session_id]["distributions"]["generated"] = {"samples": samples, "ts": int(time.time())}
+        
+        # Speichere stufe4_fragen für spätere Evaluation (damit Optionen gleich bleiben)
+        if 'stufe4_fragen' in locals() and stufe4_fragen:
+            SESSIONS[session_id]["stufe4_fragen_obj"] = stufe4_fragen
+        
         response = {
             "session_id": session_id,
             "current_level": 1,
@@ -350,8 +355,12 @@ def evaluate_w1s4(data: W1S4EvaluateRequest):
     if not samples:
         raise HTTPException(status_code=400, detail="No generated distribution for session")
 
-    stufe4_obj = Stufe4Fragen(samples)
-    fragen = stufe4_obj.get_fragen()
+    # Verwende gespeicherte Fragen statt neu zu generieren (damit Optionen gleich bleiben!)
+    fragen = SESSIONS.get(sid, {}).get("stufe4_fragen_obj")
+    if not fragen:
+        # Fallback: Generiere neu (sollte nicht passieren)
+        stufe4_obj = Stufe4Fragen(samples)
+        fragen = stufe4_obj.get_fragen()
 
     # Evaluiere nur die 3 Fragen (ohne Zeichnung)
     results = []
@@ -364,8 +373,8 @@ def evaluate_w1s4(data: W1S4EvaluateRequest):
         is_correct = False
 
         if korrekt is not None and selected_value is not None:
-            # Für die 3. Frage: Ja/Nein Vergleich
-            if idx == 2:
+            # Für Frage 3 und 5: Ja/Nein Vergleich
+            if idx == 2 or idx == 4:
                 sv = str(selected_value).strip().lower()
                 kv = str(korrekt).strip().lower()
                 yes = {'ja', 'yes', 'y', 'true', '1'}
@@ -374,6 +383,11 @@ def evaluate_w1s4(data: W1S4EvaluateRequest):
                     is_correct = sv in yes
                 elif kv in no:
                     is_correct = sv in no
+                else:
+                    is_correct = str(selected_value) == str(korrekt)
+            # Frage 4: Welche Zahl nicht gesehen (exakter String-Vergleich)
+            elif idx == 3:
+                is_correct = str(selected_value) == str(korrekt)
             else:
                 # Numerische Fragen: Erlaubt kleine Abweichungen
                 try:

@@ -21,6 +21,8 @@ export default function NumberGame(props) {
 	const [comparisonInput, setComparisonInput] = useState("");
 	const [neighborLeftCountInput, setNeighborLeftCountInput] = useState("");
 	const [neighborRightCountInput, setNeighborRightCountInput] = useState("");
+	const [unseenNumberInput, setUnseenNumberInput] = useState("");
+	const [averageComparisonInput, setAverageComparisonInput] = useState("");
 	const canvasRef = useRef(null);
 	const visualizerRef = useRef(null);
 		const distributionRef = useRef(null);
@@ -61,6 +63,8 @@ export default function NumberGame(props) {
 		setComparisonInput('');
 		setNeighborLeftCountInput('');
 		setNeighborRightCountInput('');
+		setUnseenNumberInput('');
+		setAverageComparisonInput('');
 		setEvaluationResult(null);
 	};
 
@@ -123,6 +127,18 @@ export default function NumberGame(props) {
 		if ((isStufe3 || isStufe4) && comparisonInput.trim() === '') {
 			alert('Bitte beantworte die Vergleichsfrage (ja/nein).');
 			return;
+		}
+		
+		// Stufe 4: Prüfe ob die beiden zusätzlichen Fragen beantwortet wurden
+		if (isStufe4) {
+			if (unseenNumberInput.trim() === '') {
+				alert('Bitte wähle eine Zahl aus, die du nicht gesehen hast.');
+				return;
+			}
+			if (averageComparisonInput.trim() === '') {
+				alert('Bitte beantworte die Durchschnittsfrage (ja/nein).');
+				return;
+			}
 		}
 		// Stufe 3: Zusätzlich zwei Zählfragen (peak-1, peak+1) müssen beantwortet werden
 		if (isStufe3) {
@@ -192,11 +208,16 @@ export default function NumberGame(props) {
 			} else {
 				visualizerRef.current.setLevel(level);
 			}
-			visualizerRef.current.setDrawMode(false);
+			// DrawMode nur aktivieren wenn preRevealStage 'ready' ist
+			const shouldEnableDrawing = preRevealStage === 'ready';
+			visualizerRef.current.setDrawMode(shouldEnableDrawing);
 			visualizerRef.current.setBlockMode?.(blockMode);
-			visualizerRef.current.drawAxes(distributionRef.current);
+			// drawAxes nur aufrufen wenn noch nicht revealDone (sonst überschreibt es die Referenzkurve!)
+			if (preRevealStage !== 'revealDone') {
+				visualizerRef.current.drawAxes(distributionRef.current);
+			}
 		}
-	}, [gameActive, sessionId, blockMode, level]);
+	}, [gameActive, sessionId, blockMode, level, preRevealStage]);
 
 	// Level 5: Zeichne User-Eingaben als Balken
 	useEffect(() => {
@@ -490,6 +511,81 @@ export default function NumberGame(props) {
 																</div>
 															</div>
 														)}
+														{(level && level.welt === 1 && level.stufe === 4) && (
+															<div className="mt-4 space-y-3">
+																<div>
+																	<div className="font-bold mb-2">{currentStufeFragen?.[3]?.frage || 'Welche der folgenden Zahlen hast du gar nicht gesehen?'}</div>
+																	<div className="flex gap-4">
+																		{(() => {
+																			// Hole die Optionen aus dem Fragen-Objekt
+																			let opts = currentStufeFragen?.[3]?.optionen;
+																			
+																			console.log('🔍 Frage 4 Debug:', {
+																				frageText: currentStufeFragen?.[3]?.frage,
+																				optionen: opts,
+																				fullQuestion: currentStufeFragen?.[3]
+																			});
+																			
+																			// Fallback: Extrahiere aus dem Fragetext, falls optionen nicht verfügbar
+																			if (!opts || opts.length === 0) {
+																				const frageText = currentStufeFragen?.[3]?.frage || '';
+																				const match = frageText.match(/\((\d+),\s*(\d+),\s*(\d+)\)/);
+																				if (match) {
+																					opts = [parseInt(match[1]), parseInt(match[2]), parseInt(match[3])];
+																					console.log('✅ Optionen aus Fragetext extrahiert:', opts);
+																				}
+																			}
+																			
+																			if (opts && opts.length > 0) {
+																				return opts.map((opt, idx) => (
+																					<button
+																						key={idx}
+																						type="button"
+																						className={`flex-1 px-4 py-2 rounded border-2 ${
+																							unseenNumberInput === String(opt)
+																								? 'bg-blue-600 text-white border-blue-600'
+																								: 'bg-white text-black border-gray-300'
+																						}`}
+																						onClick={() => setUnseenNumberInput(String(opt))}
+																					>
+																						{opt}
+																					</button>
+																				));
+																			} else {
+																				return <div className="text-red-500">Fehler: Optionen nicht verfügbar.</div>;
+																			}
+																		})()}
+																	</div>
+																</div>
+																<div>
+																	<div className="font-bold mb-2">{currentStufeFragen?.[4]?.frage || 'War der Durchschnitt größer als X?'}</div>
+																	<div className="flex gap-4">
+																		<button
+																			type="button"
+																			className={`flex-1 px-4 py-2 rounded border-2 ${
+																				averageComparisonInput === 'ja'
+																					? 'bg-blue-600 text-white border-blue-600'
+																					: 'bg-white text-black border-gray-300'
+																			}`}
+																			onClick={() => setAverageComparisonInput('ja')}
+																		>
+																			Ja
+																		</button>
+																		<button
+																			type="button"
+																			className={`flex-1 px-4 py-2 rounded border-2 ${
+																				averageComparisonInput === 'nein'
+																					? 'bg-blue-600 text-white border-blue-600'
+																					: 'bg-white text-black border-gray-300'
+																			}`}
+																			onClick={() => setAverageComparisonInput('nein')}
+																		>
+																			Nein
+																		</button>
+																	</div>
+																</div>
+															</div>
+														)}
 														<div className="flex items-center gap-2 mt-3">
 															<button 
 																onClick={handleFinishAdditionalPeaks} 
@@ -553,8 +649,8 @@ export default function NumberGame(props) {
 								)}
 							</div>
 						)}
-						{/* Canvas und Visualizer - für Level 5 nur anzeigen ohne Zeichenfunktion */}
-						{(inputMode === 'full-draw' || inputMode === 'full-draw-no-questions') && !evaluationResult && (
+						{/* Canvas und Visualizer - NUR anzeigen wenn alle Fragen beantwortet (preRevealStage ready/revealDone) */}
+						{(inputMode === 'full-draw' || inputMode === 'full-draw-no-questions') && (preRevealStage === 'ready' || preRevealStage === 'revealDone' || inputMode === 'full-draw-no-questions') && (
 							<>
 								{level && level.stufe === 5 ? (
 									<canvas ref={canvasRef} width={800} height={400} className="mx-auto border-2 border-gray-300 bg-white" />
@@ -643,9 +739,9 @@ export default function NumberGame(props) {
 					</div>
 					<div className="text-center mt-4 flex justify-center flex-wrap gap-2">
 						{/* Buttons nur anzeigen, wenn Zeichnen erlaubt ist */}
-						{(inputMode === 'full-draw' || inputMode === 'full-draw-no-questions') && !evaluationResult ? (
+						{(inputMode === 'full-draw' || inputMode === 'full-draw-no-questions') ? (
 							<>
-								{preRevealStage !== 'revealDone' ? (
+								{preRevealStage !== 'revealDone' && !evaluationResult ? (
 									<>
 										<button 
 											onClick={() => visualizerRef.current?.clear()}
@@ -686,7 +782,8 @@ export default function NumberGame(props) {
 											Referenzkurve anzeigen
 										</button>
 									</>
-								) : (
+								) : null}
+								{preRevealStage === 'revealDone' && (
 									<button 
 										onClick={async () => {
 											// Level 3: Berechne aus den beiden Teilergebnissen
@@ -708,7 +805,9 @@ export default function NumberGame(props) {
 													const antworten = [
 														String(guessPeakValue),
 														String(guessPeakFrequency),
-														String(comparisonInput)
+														String(comparisonInput),
+														String(unseenNumberInput),
+														String(averageComparisonInput)
 													];
 													const res = await fetch('http://127.0.0.1:3000/evaluate-w1s4', {
 														method: 'POST',

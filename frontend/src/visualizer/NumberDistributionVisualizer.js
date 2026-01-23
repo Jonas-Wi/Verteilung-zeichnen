@@ -357,12 +357,12 @@ export class NumberDistributionVisualizer extends BaseDistributionVisualizer {
     this.drawContinuous(distribution, 'red');
     this.drawUserStroke('black');
 
-    // Für Level 5: Transparente rote Hintergrund-Balken der Referenz einblenden
-    if (this.level && this.level.welt === 1 && this.level.stufe === 5) {
+    // Für Level 4 und 5: Transparente rote Hintergrund-Balken der Referenz einblenden
+    if (this.level && this.level.welt === 1 && (this.level.stufe === 4 || this.level.stufe === 5)) {
       this.drawTruthBarsBackground(distribution, 0.2, 0.25);
     }
     
-    // Für Level 5: Stelle Guess Bars wieder her
+    // Für Level 4 und 5: Stelle Guess Bars wieder her
     if (keepGuessBars && savedGuessBars) {
       this.overlayGuessBars = savedGuessBars;
       this.drawGuessBars(savedGuessBars);
