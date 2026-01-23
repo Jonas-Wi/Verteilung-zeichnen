@@ -233,7 +233,16 @@ export default function W1S2Freitext({ sessionId, fragen, onAntwortenFertig }) {
                         </div>
                     </div>
                     <div className="mt-6 text-center">
-                        <button className="px-4 py-2 bg-green-600 text-white rounded" onClick={() => onAntwortenFertig(antworten)}>
+                        <button
+                            className="px-4 py-2 bg-green-600 text-white rounded"
+                            onClick={() => {
+                                // Nach der Gesamtauswertung zurück zum Leiterspiel, direkt Welt 1
+                                const base = window.location.origin;
+                                const params = new URLSearchParams();
+                                params.set('welt', '1');
+                                window.location.href = base + "/leiterspiel/LEITERSPIELFINAL.html?" + params.toString();
+                            }}
+                        >
                             Weiter
                         </button>
                     </div>

@@ -338,6 +338,14 @@ export default function NumberGame(props) {
 	// Verwende direkt die Props statt lokale States für Stufe 3/4
 	const currentStufeFragen = level && level.welt === 1 && level.stufe === 3 ? (props.stufe3_fragen || stufe3Fragen) : (level && level.welt === 1 && level.stufe === 4 ? (props.stufe4_fragen || stufe4Fragen) : []);
 
+	// Hilfsfunktion: Zurück zum Leiterspiel
+	function goBackToLeiterspiel(){
+		const base = window.location.origin;
+		const params = new URLSearchParams();
+		params.set('welt', String((level && level.welt) ? level.welt : 1));
+		window.location.href = base + "/leiterspiel/LEITERSPIELFINAL.html?" + params.toString();
+	}
+
 	return (
 		<div>
 			{gameActive ? (
@@ -878,6 +886,16 @@ export default function NumberGame(props) {
 										Gesamtscore anzeigen
 									</button>
 								)}
+
+									{/* Nach der Auswertung: Zurück zum Leiterspiel */}
+									{(preRevealStage === 'revealDone' || evaluationResult) && (
+										<button
+											onClick={goBackToLeiterspiel}
+											className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-800"
+										>
+											Zurück zum Leiterspiel
+										</button>
+									)}
 							</>
 						) : null}
 					</div>

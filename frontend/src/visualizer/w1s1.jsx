@@ -114,7 +114,16 @@ export default function W1S1MultipleChoice({ sessionId, fragen, onAntwortenFerti
 						<div className="mt-3 text-center">
 							<button
 								className="px-4 py-2 bg-blue-600 text-white rounded"
-								onClick={() => onAntwortenFertig(antworten)}
+								onClick={() => {
+									// Nach der Auswertung Score an Leiterspiel übertragen (welt=1, stufe=1)
+									const base = window.location.origin;
+									const params = new URLSearchParams();
+									params.set('welt', '1');
+									params.set('stufe', '1');
+									params.set('score', String(ergebnis?.score ?? 0));
+									params.set('src', 'w1s1');
+									window.location.href = base + "/leiterspiel/LEITERSPIELFINAL.html?" + params.toString();
+								}}
 							>
 								Weiter
 							</button>

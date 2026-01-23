@@ -66,10 +66,10 @@ def start_session(request: StartSessionRequest):
         
         if game_mode == "number":
             # Level-Infos abfragen und speichern
-            # Immer die Werte aus der Klasse Level verwenden
+            # Nutze Werte aus Request, sonst Defaults aus Level()
             level_defaults = Level()
-            welt = level_defaults.welt
-            stufe = level_defaults.stufe
+            welt = request.welt if request.welt is not None else level_defaults.welt
+            stufe = request.stufe if request.stufe is not None else level_defaults.stufe
             print(f"🎮 DEBUG: Level-Defaults: welt={welt}, stufe={stufe}")
             n = getattr(request, "n", None)
             if distribution_type not in VerteilungMain.available():

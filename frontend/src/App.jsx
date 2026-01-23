@@ -20,13 +20,18 @@ export default function App() {
   const drawing = useRef(false);
   const [playerBins, setPlayerBins] = useState(() => new Array(101).fill(0));
 
-  const startGame = async (mode = "color") => {
+  const startGame = async (mode = "color", opts = {}) => {
     console.log("startGame called", mode);
     try {
       const body = { 
         distribution_type: "normal",
         game_mode: mode
       };
+      if (mode === "number") {
+        if (opts && typeof opts.welt === "number") body.welt = opts.welt;
+        if (opts && typeof opts.stufe === "number") body.stufe = opts.stufe;
+        if (opts && typeof opts.n === "number") body.n = opts.n;
+      }
       const url = "http://127.0.0.1:3000/start-session";
       console.log("fetch ->", url, body);
       const res = await fetch(url, {
@@ -74,6 +79,26 @@ export default function App() {
       alert("Failed to connect to backend. Make sure it's running on http://localhost:3000");
     }
   };
+
+  // Auto-start from URL params for integration with Leiterspiel
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const mode = params.get("mode");
+      const welt = params.get("welt");
+      const stufe = params.get("stufe");
+      const auto = params.get("auto");
+      const weltNum = welt != null ? parseInt(welt, 10) : undefined;
+      const stufeNum = stufe != null ? parseInt(stufe, 10) : undefined;
+      if (mode === "number" || mode === "color") {
+        setGameMode(mode);
+        if (auto !== null || weltNum !== undefined || stufeNum !== undefined) {
+          startGame(mode, { welt: weltNum, stufe: stufeNum });
+        }
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     drawCanvas();
