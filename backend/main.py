@@ -17,6 +17,7 @@ from fragen.stufe5 import Stufe5Fragen
 from zahlenevaluation.w1s2evaluation import W1S2Evaluation
 from zahlenevaluation.w1s3evaluation import W1S3Evaluation
 from zahlenevaluation.w1s4evaluation import W1S4Evaluation
+from zahlenevaluation.w1s5evaluation import W1S5Evaluation
 from fragen.stufe2 import Stufe2Fragen
 from zahlenevaluation import W1S1Evaluation
 
@@ -439,35 +440,13 @@ def evaluate_w1s5(data: W1S5EvaluateRequest):
     if len(user_histogram) != 21:
         raise HTTPException(status_code=400, detail="Invalid histogram length")
 
-    # Berechne Abweichung (Mean Absolute Error)
-    total_error = 0
-    max_possible_error = 0
-    
-    for i in range(21):
-        true_val = true_histogram[i]
-        user_val = user_histogram[i]
-        error = abs(true_val - user_val)
-        total_error += error
-        max_possible_error += true_val  # Maximaler Fehler wäre wenn user alles falsch rät
-
-    # Score: 1.0 = perfekt, 0.0 = komplett falsch
-    # Verwende eine Formel die großzügiger ist
-    if max_possible_error > 0:
-        # Normalisiere auf 0-1, dann invertiere
-        normalized_error = total_error / (2 * max_possible_error)  # Division durch 2 macht es großzügiger
-        score = max(0.0, 1.0 - normalized_error)
-    else:
-        score = 1.0
-
-    score_percent = round(score * 100)
+    # Nutze die komposite Bewertung aus W1S5Evaluation
+    evaluator = W1S5Evaluation(true_histogram, user_histogram)
+    ev = evaluator.evaluate()
 
     return {
         "status": "ok",
-        "evaluation": {
-            "score": score_percent,
-            "total_error": total_error,
-            "max_possible_error": max_possible_error
-        }
+        "evaluation": ev
     }
 
 

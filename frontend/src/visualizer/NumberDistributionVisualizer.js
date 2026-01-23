@@ -170,6 +170,37 @@ export class NumberDistributionVisualizer extends BaseDistributionVisualizer {
     this.ctx.restore();
   }
 
+  // Zeichnet transparente rote Hintergrund-Balken für die gesamte Referenzverteilung
+  drawTruthBarsBackground(distribution, fillAlpha = 0.2, strokeAlpha = 0.3) {
+    if (!distribution || distribution.length === 0) return;
+    const left = 50;
+    const right = this.canvasWidth - 50;
+    const top = 20;
+    const bottom = this.canvasHeight - 60;
+    const plotW = right - left;
+    const plotH = bottom - top;
+    const histogram = new Array(21).fill(0);
+    distribution.forEach(v => {
+      const val = Math.max(0, Math.min(20, Math.round(v)));
+      histogram[val]++;
+    });
+    const maxY = this.numberModeMaxY || 10;
+    this.ctx.save();
+    for (let val = 0; val < 21; val++) {
+      const count = histogram[val];
+      const barWidth = plotW / 21;
+      const xPos = left + val * barWidth;
+      const barHeight = (count / maxY) * plotH;
+      const yPos = bottom - barHeight;
+      this.ctx.fillStyle = `rgba(255,0,0,${fillAlpha})`;
+      this.ctx.fillRect(xPos, yPos, barWidth * 0.8, barHeight);
+      this.ctx.strokeStyle = `rgba(255,0,0,${strokeAlpha})`;
+      this.ctx.lineWidth = 1;
+      this.ctx.strokeRect(xPos, yPos, barWidth * 0.8, barHeight);
+    }
+    this.ctx.restore();
+  }
+
   // Zeichnet graue Balken für vom Spieler eingegebene Schätzungen
   // guesses: Array von { value: number (0-20), frequency: number }
   drawGuessBars(guesses, colorFill = 'rgba(150,150,150,0.5)', colorStroke = 'rgba(120,120,120,0.9)') {
@@ -325,6 +356,11 @@ export class NumberDistributionVisualizer extends BaseDistributionVisualizer {
     // drawDistribution entfernt - nur noch gezeichneter Graph und Referenzkurve
     this.drawContinuous(distribution, 'red');
     this.drawUserStroke('black');
+
+    // Für Level 5: Transparente rote Hintergrund-Balken der Referenz einblenden
+    if (this.level && this.level.welt === 1 && this.level.stufe === 5) {
+      this.drawTruthBarsBackground(distribution, 0.2, 0.25);
+    }
     
     // Für Level 5: Stelle Guess Bars wieder her
     if (keepGuessBars && savedGuessBars) {

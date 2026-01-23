@@ -1,90 +1,120 @@
 """W1S5Evaluation
 
-Evaluiert nur die gezeichnete Verteilung für Welt 1, Stufe 5.
-- 100% Gewichtung für die gezeichnete Verteilung (RMSE-basiert)
-- Keine Freitext-Fragen
+Bewertet die Eingabe für Welt 1, Stufe 5 mit einem
+kompositen, fehlerbasierten Score. Ziel ist es, reine
+Null-Eingaben nicht zu belohnen und "fast richtig" deutlich
+zu honorieren.
+
+Komponenten (je 0..1, am Ende gewichtet kombiniert):
+- Fehlerbasierter Score: 1 - (Summe |user[i] - gt[i]| / Sum(gt)).
+    (Sum(gt) als Normalisierung verhindert hohe Werte bei "alles null").
+- Form-/Richtung: Distanz der gewichteten Mittelwerte (Schwerpunkte)
+    der Verteilungen, auf Bereich 0..20 normiert.
+- Peak-Position: 1.0 bei gleicher x-Position, 0.5 bei ±1, sonst 0.0.
+- Peak-Höhe: 1 - |user_peak_height - gt_peak_height| / gt_peak_height.
+
+Endscore (0..100%):
+    40% Fehler, 30% Form, 15% Peak-Position, 15% Peak-Höhe.
 """
 from typing import List, Dict, Any
 import math
 
 class W1S5Evaluation:
-    """
-    Bewertet nur die gezeichnete Verteilung für Stufe 5.
-    
-    Usage:
-        ev = W1S5Evaluation(ground_truth_histogram, player_drawn_histogram)
-        result = ev.evaluate()
-    
-    - `ground_truth_histogram` ist die wahrhafte Häufigkeitsverteilung (Liste von Counts)
-    - `player_drawn_histogram` ist die vom Spieler gezeichnete Verteilung (Liste von Counts)
+    """Komposite Bewertung für Stufe 5.
+
+    - `ground_truth_histogram`: echte Häufigkeiten pro Wert 0..20
+    - `player_drawn_histogram`: Nutzer-Eingaben pro Wert 0..20
     """
     def __init__(self, ground_truth_histogram: List[int], player_drawn_histogram: List[int]):
         self.ground_truth_histogram = ground_truth_histogram or []
         self.player_drawn_histogram = player_drawn_histogram or []
 
-    def _calculate_rmse(self) -> float:
-        """
-        Berechnet den RMSE zwischen wahrer und gezeichneter Verteilung.
-        RMSE = sqrt(mean((true - predicted)^2))
-        """
-        if not self.ground_truth_histogram or not self.player_drawn_histogram:
-            return float('inf')
-        
-        # Beide Arrays sollten die gleiche Länge haben
-        min_len = min(len(self.ground_truth_histogram), len(self.player_drawn_histogram))
-        
-        sum_squared_errors = 0.0
-        for i in range(min_len):
-            error = self.ground_truth_histogram[i] - self.player_drawn_histogram[i]
-            sum_squared_errors += error ** 2
-        
-        mse = sum_squared_errors / min_len if min_len > 0 else 0
-        rmse = math.sqrt(mse)
-        return rmse
+    def _peak_info(self, counts: List[int]) -> Dict[str, int]:
+        if not counts:
+            return {"idx": None, "height": 0}
+        idx = int(max(range(len(counts)), key=lambda i: counts[i])) if len(counts) > 0 else None
+        height = int(counts[idx]) if idx is not None else 0
+        return {"idx": idx, "height": height}
 
-    def _normalize_rmse_to_score(self, rmse: float) -> float:
-        """
-        Normalisiert RMSE zu einem Score zwischen 0 und 1.
-        Verwendet einen Normalisierungsfaktor für strengere Bewertung.
-        Score = max(0, 1 - RMSE / (max_count * 2))
-        """
-        if not self.ground_truth_histogram:
-            return 0.0
-
-        max_count = max(self.ground_truth_histogram) if any(self.ground_truth_histogram) else 1.0
-        if max_count <= 0:
-            max_count = 1.0
-
-        # Strengere Normalisierung: Faktor 2.0 statt 1.0
-        normalization_factor = max_count * 2.0
-        score = max(0.0, 1.0 - (rmse / normalization_factor))
-        return min(1.0, score)
+    def _weighted_mean(self, counts: List[int]) -> float:
+        total = sum(counts)
+        if total <= 0:
+            return float('nan')
+        return sum(i * c for i, c in enumerate(counts)) / float(total)
 
     def evaluate(self) -> Dict[str, Any]:
-        """
-        Evaluiert nur die gezeichnete Verteilung (100%).
-        
-        Returns a dict with:
-        - rmse: Root Mean Squared Error der Zeichnung
-        - drawing_score (0..1)
-        - score: Final Score (0..1) = drawing_score
-        - passed (bool, threshold 0.6)
-        """
-        # Bewertung der gezeichneten Verteilung
-        rmse = self._calculate_rmse()
-        drawing_score = self._normalize_rmse_to_score(rmse)
-        
-        # Finaler Score (100% Zeichnung)
-        final_score = drawing_score
-        passed = final_score >= 0.6
-        
+        """Berechnet den Gesamt-Score (0..100) gemäß Spezifikation."""
+        gt = list(self.ground_truth_histogram)
+        user = list(self.player_drawn_histogram)
+        if not gt or not user:
+            return {"score": 0, "details": {"error": 0, "form": 0, "peak_pos": 0, "peak_height": 0}}
+
+        n = min(len(gt), len(user))
+        gt = gt[:n]
+        user = user[:n]
+
+        # Fehlerbasierter Score
+        total_error = sum(abs(gt[i] - user[i]) for i in range(n))
+        max_error_norm = max(1, sum(gt))  # verhindert hohe Werte bei "alles null"
+        error_score = max(0.0, 1.0 - (total_error / max_error_norm))
+
+        # Form-/Richtung (Schwerpunktdistanz)
+        mean_gt = self._weighted_mean(gt)
+        mean_user = self._weighted_mean(user)
+        if math.isnan(mean_user):
+            form_score = 0.0
+        else:
+            mean_dist = abs(mean_gt - mean_user)
+            form_score = max(0.0, 1.0 - min(1.0, mean_dist / 20.0))
+
+        # Peak-Position
+        p_gt = self._peak_info(gt)
+        p_user = self._peak_info(user)
+        if p_user["idx"] is None or p_gt["idx"] is None:
+            peak_pos_score = 0.0
+        else:
+            dx = abs(p_gt["idx"] - p_user["idx"])
+            peak_pos_score = 1.0 if dx == 0 else (0.5 if dx == 1 else 0.0)
+
+        # Peak-Höhe
+        if p_gt["height"] <= 0 or p_user["idx"] is None:
+            peak_height_score = 0.0
+        else:
+            user_height_at_gt_peak = user[p_gt["idx"]]
+            peak_height_score = max(0.0, 1.0 - min(1.0, abs(user_height_at_gt_peak - p_gt["height"]) / float(p_gt["height"])) )
+
+        # Gewichte (Summe = 1)
+        w_error = 0.40
+        w_form = 0.30
+        w_peak_pos = 0.15
+        w_peak_height = 0.15
+
+        final_ratio = (
+            w_error * error_score
+            + w_form * form_score
+            + w_peak_pos * peak_pos_score
+            + w_peak_height * peak_height_score
+        )
+        final_ratio = max(0.0, min(1.0, final_ratio))
+        score_percent = int(round(final_ratio * 100))
+
         return {
             "results": [],
             "correct_count": 0,
             "total": 0,
             "questions_score": 0.0,
-            "rmse": rmse,
-            "drawing_score": drawing_score,
-            "score": final_score,
-            "passed": passed
+            "score": score_percent,
+            "passed": score_percent >= 60,
+            "details": {
+                "total_error": total_error,
+                "error_score": round(error_score, 3),
+                "mean_gt": round(mean_gt, 3) if not math.isnan(mean_gt) else None,
+                "mean_user": round(mean_user, 3) if not math.isnan(mean_user) else None,
+                "form_score": round(form_score, 3),
+                "peak_gt_idx": p_gt["idx"],
+                "peak_user_idx": p_user["idx"],
+                "peak_pos_score": round(peak_pos_score, 3),
+                "peak_gt_height": p_gt["height"],
+                "peak_height_score": round(peak_height_score, 3),
+            }
         }

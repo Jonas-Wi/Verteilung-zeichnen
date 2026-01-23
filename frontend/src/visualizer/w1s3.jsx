@@ -45,6 +45,7 @@ export default function W1S3Questions({ sessionId, fragen, onAntwortenFertig, di
           correct_count: ev.correct_count,
           total: ev.total,
           score: Math.round(ev.questions_score * 100),
+          frage_indices: [0, 1],
         });
         setStep(2); // Zeige Auswertung
       } else {
@@ -95,6 +96,7 @@ export default function W1S3Questions({ sessionId, fragen, onAntwortenFertig, di
           correct_count: ev.correct_count,
           total: ev.total,
           score: Math.round(ev.questions_score * 100),
+          frage_indices: [2, 3, 4],
         });
         setStep(4); // Zeige Auswertung
       } else {
@@ -155,13 +157,18 @@ export default function W1S3Questions({ sessionId, fragen, onAntwortenFertig, di
           <div className="bg-gray-800 p-4 rounded">
             <div className="mb-2">Punkte: <span className="font-mono">{step1Ergebnis.correct_count}/{step1Ergebnis.total}</span></div>
             <div className="space-y-2">
-              {step1Ergebnis.results.map((r, i) => (
-                <div key={i} className={`p-2 rounded ${r.is_correct ? 'bg-green-700 text-white' : 'bg-red-700 text-white'}`}>
-                  <div className="font-semibold">{r.frage}</div>
-                  <div className="text-sm">Deine Antwort: <span className="font-mono">{r.selected_value ?? '—'}</span></div>
-                  <div className="text-sm">Richtige Antwort: <span className="font-mono">{r.korrekt ?? '—'}</span></div>
-                </div>
-              ))}
+              {step1Ergebnis.results.map((r, i) => {
+                const frageIndices = step1Ergebnis?.frage_indices || [0, 1];
+                const globalIdx = frageIndices[r.frage_idx] ?? r.frage_idx;
+                const questionText = fragen?.[globalIdx]?.frage ?? '';
+                return (
+                  <div key={i} className={`p-2 rounded ${r.is_correct ? 'bg-green-700 text-white' : 'bg-red-700 text-white'}`}>
+                    <div className="font-semibold">{questionText}</div>
+                    <div className="text-sm">Deine Antwort: <span className="font-mono">{r.selected_value ?? '—'}</span></div>
+                    <div className="text-sm">Richtige Antwort: <span className="font-mono">{r.korrekt ?? '—'}</span></div>
+                  </div>
+                );
+              })}
             </div>
             <div className="mt-3 text-center">
               <button className="px-4 py-2 bg-blue-600 text-white rounded" onClick={handleStep2Weiter}>
@@ -229,13 +236,18 @@ export default function W1S3Questions({ sessionId, fragen, onAntwortenFertig, di
           <div className="bg-gray-800 p-4 rounded">
             <div className="mb-2">Punkte: <span className="font-mono">{step2Ergebnis.correct_count}/{step2Ergebnis.total}</span></div>
             <div className="space-y-2">
-              {step2Ergebnis.results.map((r, i) => (
-                <div key={i} className={`p-2 rounded ${r.is_correct ? 'bg-green-700 text-white' : 'bg-red-700 text-white'}`}>
-                  <div className="font-semibold">{r.frage}</div>
-                  <div className="text-sm">Deine Antwort: <span className="font-mono">{r.selected_value ?? '—'}</span></div>
-                  <div className="text-sm">Richtige Antwort: <span className="font-mono">{r.korrekt ?? '—'}</span></div>
-                </div>
-              ))}
+              {step2Ergebnis.results.map((r, i) => {
+                const frageIndices = step2Ergebnis?.frage_indices || [2, 3, 4];
+                const globalIdx = frageIndices[r.frage_idx] ?? r.frage_idx;
+                const questionText = fragen?.[globalIdx]?.frage ?? '';
+                return (
+                  <div key={i} className={`p-2 rounded ${r.is_correct ? 'bg-green-700 text-white' : 'bg-red-700 text-white'}`}>
+                    <div className="font-semibold">{questionText}</div>
+                    <div className="text-sm">Deine Antwort: <span className="font-mono">{r.selected_value ?? '—'}</span></div>
+                    <div className="text-sm">Richtige Antwort: <span className="font-mono">{r.korrekt ?? '—'}</span></div>
+                  </div>
+                );
+              })}
             </div>
             <div className="mt-3 text-center">
               <button className="px-4 py-2 bg-blue-600 text-white rounded" onClick={handleStep4Weiter}>

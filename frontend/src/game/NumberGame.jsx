@@ -601,13 +601,43 @@ export default function NumberGame(props) {
 								<h2 className="text-2xl font-bold mb-4 text-center">Gesamtergebnis</h2>
 								<div className="bg-blue-100 p-6 rounded-lg text-center">
 									<div className="text-4xl font-bold text-blue-800 mb-2">{evaluationResult.score}%</div>
-									<div className="text-xl text-gray-800 mb-4">
-										{evaluationResult.correct_count} von {evaluationResult.total} Fragen richtig
-									</div>
+									{!(level.stufe === 5) && (
+										<div className="text-xl text-gray-800 mb-4">
+											{evaluationResult.correct_count} von {evaluationResult.total} Fragen richtig
+										</div>
+									)}
 									<div className={`text-lg font-bold ${evaluationResult.score >= 60 ? 'text-green-700' : 'text-red-700'}`}>
 										{evaluationResult.score >= 60 ? '✓ Bestanden' : '✗ Nicht bestanden'}
 									</div>
+
+									{/* Stufe 5: Transparente, stichpunktartige Zusammensetzung des Scores */}
+									{level.stufe === 5 && evaluationResult?.details && (
+										<div className="mt-4 bg-white/70 border border-gray-200 rounded p-4 text-left">
+											<div className="text-sm font-semibold text-gray-700 mb-2">Zusammensetzung des Scores</div>
+											<ul className="list-disc pl-5 text-sm text-gray-800 space-y-1">
+												<li>Fehleranteil (40%): {Math.round(((evaluationResult.details.error_score || evaluationResult.details.error) || 0) * 40)}%</li>
+												<li>Formähnlichkeit (30%): {Math.round((evaluationResult.details.form_score || 0) * 30)}%</li>
+												<li>Hochpunkt-Position (15%): {Math.round((evaluationResult.details.peak_pos_score || 0) * 15)}%</li>
+												<li>Hochpunkt-Höhe (15%): {Math.round((evaluationResult.details.peak_height_score || 0) * 15)}%</li>
+											</ul>
+										</div>
+									)}
 								</div>
+
+								{level.stufe === 4 && Array.isArray(evaluationResult.results) && (
+									<div className="bg-gray-800 p-4 rounded mt-4">
+										<div className="mb-2 text-white font-semibold">Auswertung der Fragen</div>
+										<div className="space-y-2">
+											{evaluationResult.results.map((r, i) => (
+												<div key={i} className={`p-2 rounded ${r.is_correct ? 'bg-green-700 text-white' : 'bg-red-700 text-white'}`}>
+													<div className="font-semibold">{r.frage}</div>
+													<div className="text-sm">Deine Antwort: <span className="font-mono">{r.selected_value ?? '—'}</span></div>
+													<div className="text-sm">Richtige Antwort: <span className="font-mono">{r.korrekt ?? '—'}</span></div>
+												</div>
+											))}
+										</div>
+									</div>
+								)}
 							</div>
 						)}
 					</div>
@@ -698,7 +728,8 @@ export default function NumberGame(props) {
 														setEvaluationResult({
 															score,
 															total: ev.total,
-															correct_count: ev.correct_count
+															correct_count: ev.correct_count,
+															results: ev.results
 														});
 													} else {
 														console.error('unexpected response', json);
@@ -729,8 +760,9 @@ export default function NumberGame(props) {
 														const ev = json.evaluation;
 														setEvaluationResult({
 															score: ev.score,
-															total: 21,  // 21 Werte (0-20)
-															correct_count: Math.round((ev.score / 100) * 21)
+															// Für Stufe 5 keine "x von y richtig" Anzeige mehr
+															// sondern detaillierte Komponenten aus dem Backend anzeigen
+															details: ev.details || null
 														});
 													} else {
 														console.error('unexpected response', json);

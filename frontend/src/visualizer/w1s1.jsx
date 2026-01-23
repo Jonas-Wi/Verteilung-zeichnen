@@ -6,6 +6,34 @@ export default function W1S1MultipleChoice({ sessionId, fragen, onAntwortenFerti
 	const [antworten, setAntworten] = useState(Array(fragen.length).fill(null));
 	const [ergebnis, setErgebnis] = useState(null);
 
+	// Helper to determine button classes after evaluation
+	const getOptionClass = (frageIdx, optionIdx, optVal) => {
+		// If not evaluated yet, keep normal selection coloring
+		if (!ergebnis) {
+			return antworten[frageIdx] === optionIdx
+				? "bg-blue-500 text-white"
+				: "bg-white text-black";
+		}
+
+		// After evaluation
+		const res = ergebnis.results?.find((r) => r.frage_idx === frageIdx);
+		if (antworten[frageIdx] === optionIdx) {
+			// Selected option: green if correct, red if wrong
+			return res?.is_correct ? "bg-green-600 text-white" : "bg-red-600 text-white";
+		}
+
+		// If the selected answer was wrong, outline the correct option in green
+		const selectedWrong = res && res.is_correct === false;
+		const isCorrectOption = res && String(optVal) === String(res.korrekt);
+		if (selectedWrong && isCorrectOption) {
+			// Make the correct option clearly stand out
+			return "bg-white text-black border-4 border-green-600 ring-4 ring-green-300";
+		}
+
+		// Non-selected options stay neutral
+		return "bg-white text-black";
+	};
+
 	const handleAntwort = (frageIdx, optionIdx) => {
 		const newAntworten = [...antworten];
 		newAntworten[frageIdx] = optionIdx;
@@ -61,8 +89,9 @@ export default function W1S1MultipleChoice({ sessionId, fragen, onAntwortenFerti
 						{frageObj.optionen.map((opt, oidx) => (
 							<button
 								key={oidx}
-								className={`px-3 py-1 rounded border ${antworten[idx] === oidx ? "bg-blue-500 text-white" : "bg-white text-black"}`}
+								className={`px-3 py-1 rounded border ${getOptionClass(idx, oidx, opt)}`}
 								onClick={() => handleAntwort(idx, oidx)}
+								disabled={!!ergebnis}
 							>
 								{opt}
 							</button>
@@ -82,15 +111,6 @@ export default function W1S1MultipleChoice({ sessionId, fragen, onAntwortenFerti
 					<div className="w-full max-w-md bg-gray-800 p-4 rounded">
 						<div className="text-center font-bold text-lg mb-2">Ergebnis</div>
 						<div className="mb-2">Punkte: <span className="font-mono">{ergebnis.correct_count}/{ergebnis.total}</span> &middot; <span className="font-mono">{ergebnis.score}%</span></div>
-						<div className="space-y-2">
-							{ergebnis.results.map((r) => (
-								<div key={r.frage_idx} className={`p-2 rounded ${r.is_correct ? 'bg-green-700 text-white' : 'bg-red-700 text-white'}`}>
-									<div className="font-semibold">{r.frage}</div>
-									<div className="text-sm">Deine Antwort: <span className="font-mono">{r.selected_value ?? '—'}</span></div>
-									<div className="text-sm">Richtige Antwort: <span className="font-mono">{r.korrekt ?? '—'}</span></div>
-								</div>
-							))}
-						</div>
 						<div className="mt-3 text-center">
 							<button
 								className="px-4 py-2 bg-blue-600 text-white rounded"
