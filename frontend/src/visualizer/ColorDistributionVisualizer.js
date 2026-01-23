@@ -50,10 +50,14 @@ export class ColorDistributionVisualizer extends BaseDistributionVisualizer {
     this.ctx.fillStyle = "black";
     this.ctx.textAlign = "center";
     this.ctx.fillText("Ballonwert", left + plotW / 2, bottom + 35);
-    this.ctx.textAlign = "left";
-    this.ctx.fillText("Weiß (0)", left, bottom + 55);
-    this.ctx.textAlign = "right";
-    this.ctx.fillText("Schwarz (100)", right, bottom + 55);
+    
+    // X-Achse: Beschriftung alle 10 Einheiten (0, 10, 20, ..., 100)
+    this.ctx.textAlign = "center";
+    for (let i = 0; i <= 100; i += 10) {
+      const xPos = left + (i / 100) * plotW;
+      this.ctx.fillText(i.toString(), xPos, bottom + 55);
+    }
+    
     const colorbarY = bottom + 15;
     const colorbarH = 14;
     const grad = this.ctx.createLinearGradient(left, 0, right, 0);

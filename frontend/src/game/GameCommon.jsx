@@ -40,7 +40,7 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 		class MainScene extends Phaser.Scene {
 			constructor() {
 				super({ key: "MainScene" });
-				this.timer = 5; // Sekunden (angepasst)
+			this.timer = 5; // Sekunden (angepasst)
 				this.distribution = null;
 				this.blockValues = [];
 				this.balloonSpawner = null;
@@ -191,7 +191,7 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 					colorHex = (shade << 16) | (shade << 8) | shade;
 					displayValue = Math.round(value);
 				}
-				const radius = 12 + Math.random() * 8;
+			const radius = 16;
 				const balloon = this.add.ellipse(x, y, radius * 2, radius * 2, colorHex).setStrokeStyle(2, 0x222222);
 				this.physics.add.existing(balloon);
 				balloon.body.setVelocity(Phaser.Math.Between(-50, 50), Phaser.Math.Between(-220, -120));
@@ -199,7 +199,7 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 				balloon.body.setCollideWorldBounds(true);
 				balloon.__value = value;
 				if (this.gameMode === "number" || showNumbers) {
-					const lbl = this.add.text(x - 10, y - 8, String(displayValue), { font: this.gameMode === "number" ? '14px Arial bold' : '12px Arial', fill: '#000' }).setDepth(9);
+				const lbl = this.add.text(x - 10, y - 8, String(displayValue), { font: this.gameMode === "number" ? '18px Arial bold' : '16px Arial bold', fill: '#000' }).setDepth(9);
 					balloon.__label = lbl;
 				}
 				this.balloonsGroup.add(balloon);

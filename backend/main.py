@@ -225,11 +225,13 @@ class W1S1EvaluateRequest(BaseModel):
     class W1S2EvaluateRequest(BaseModel):
         session_id: str
         antworten: list[str]
+        frage_indices: list[int] = None  # Optional: Nur bestimmte Fragen evaluieren
 
     @app.post("/evaluate-w1s2")
     def evaluate_w1s2(data: W1S2EvaluateRequest):
         """Evaluate Welt1 Stufe2 Freitext-Antworten auf dem Backend.
         Verwendet die gespeicherten Samples, erzeugt die Fragen erneut und wertet mit W1S2Evaluation aus.
+        Unterstützt Teil-Evaluationen via frage_indices.
         """
         sid = data.session_id
         if sid not in SESSIONS:
@@ -241,9 +243,17 @@ class W1S1EvaluateRequest(BaseModel):
         if not samples:
             raise HTTPException(status_code=400, detail="No generated distribution for session")
 
-        # Recreate the Stufe2 questions and evaluate
-        fragen = Stufe2Fragen(samples).get_fragen()
-        evaluator = W1S2Evaluation(fragen, data.antworten)
+        # Recreate the Stufe2 questions
+        alle_fragen = Stufe2Fragen(samples).get_fragen()
+        
+        # Wenn frage_indices angegeben ist, nur diese Fragen evaluieren
+        if data.frage_indices is not None:
+            fragen_subset = [alle_fragen[i] for i in data.frage_indices if i < len(alle_fragen)]
+            evaluator = W1S2Evaluation(fragen_subset, data.antworten)
+        else:
+            # Alle Fragen evaluieren
+            evaluator = W1S2Evaluation(alle_fragen, data.antworten)
+        
         result = evaluator.evaluate()
         return {"status": "ok", "evaluation": result}
     session_id: str
@@ -278,12 +288,14 @@ def evaluate_w1s1(data: W1S1EvaluateRequest):
 class W1S3EvaluateRequest(BaseModel):
     session_id: str
     antworten: list[str]
+    frage_indices: list[int] = None  # Optional: spezifische Fragen evaluieren
 
 @app.post("/evaluate-w1s3")
 def evaluate_w1s3(data: W1S3EvaluateRequest):
     """Evaluate Welt1 Stufe3 fünf Fragen vor dem Zeichnen.
 
     Rekonstruiert Fragen und bewertet nur die Fragen-Komponente.
+    Unterstützt partielle Evaluierung via frage_indices.
     """
     sid = data.session_id
     if sid not in SESSIONS:
@@ -300,7 +312,13 @@ def evaluate_w1s3(data: W1S3EvaluateRequest):
     # Player drawn histogram ist vor dem Zeichnen leer -> gleiche Länge mit Nullen
     player_drawn_histogram = [0] * len(ground_truth_histogram)
 
-    evaluator = W1S3Evaluation(fragen, data.antworten, ground_truth_histogram, player_drawn_histogram)
+    # Wenn frage_indices angegeben, nur diese Fragen evaluieren
+    if data.frage_indices is not None:
+        filtered_fragen = [fragen[i] for i in data.frage_indices if i < len(fragen)]
+        evaluator = W1S3Evaluation(filtered_fragen, data.antworten, ground_truth_histogram, player_drawn_histogram)
+    else:
+        evaluator = W1S3Evaluation(fragen, data.antworten, ground_truth_histogram, player_drawn_histogram)
+    
     result = evaluator.evaluate()
     # Nur Fragen-Ergebnis zurückgeben (Frontend zeigt Fragenbewertung)
     filtered = {
@@ -310,6 +328,147 @@ def evaluate_w1s3(data: W1S3EvaluateRequest):
         "questions_score": result.get("questions_score"),
     }
     return {"status": "ok", "evaluation": filtered}
+
+
+class W1S4EvaluateRequest(BaseModel):
+    session_id: str
+    antworten: list[str]
+
+@app.post("/evaluate-w1s4")
+def evaluate_w1s4(data: W1S4EvaluateRequest):
+    """Evaluate Welt1 Stufe4 drei Fragen (nur Fragen, ohne Zeichnung).
+
+    Rekonstruiert Fragen und bewertet nur die Fragen-Komponente.
+    """
+    sid = data.session_id
+    if sid not in SESSIONS:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    generated = SESSIONS.get(sid, {}).get("distributions", {}).get("generated", {})
+    samples = generated.get("samples")
+    if not samples:
+        raise HTTPException(status_code=400, detail="No generated distribution for session")
+
+    stufe4_obj = Stufe4Fragen(samples)
+    fragen = stufe4_obj.get_fragen()
+
+    # Evaluiere nur die 3 Fragen (ohne Zeichnung)
+    results = []
+    correct_count = 0
+    total = len(fragen)
+
+    for idx, frage in enumerate(fragen):
+        korrekt = frage.get("korrekt")
+        selected_value = data.antworten[idx].strip() if idx < len(data.antworten) and data.antworten[idx] is not None else None
+        is_correct = False
+
+        if korrekt is not None and selected_value is not None:
+            # Für die 3. Frage: Ja/Nein Vergleich
+            if idx == 2:
+                sv = str(selected_value).strip().lower()
+                kv = str(korrekt).strip().lower()
+                yes = {'ja', 'yes', 'y', 'true', '1'}
+                no = {'nein', 'no', 'n', 'false', '0'}
+                if kv in yes:
+                    is_correct = sv in yes
+                elif kv in no:
+                    is_correct = sv in no
+            else:
+                # Numerische Fragen: Erlaubt kleine Abweichungen
+                try:
+                    sv_num = float(selected_value)
+                    kv_num = float(korrekt)
+                    # Für Frage 1 (peak_value): Exakte Übereinstimmung
+                    if idx == 0:
+                        is_correct = abs(sv_num - kv_num) < 0.01
+                    # Für Frage 2 (peak_frequency): Toleranz von 20%
+                    elif idx == 1:
+                        tolerance = max(1, kv_num * 0.2)
+                        is_correct = abs(sv_num - kv_num) <= tolerance
+                except (ValueError, TypeError):
+                    is_correct = False
+
+        if is_correct:
+            correct_count += 1
+
+        results.append({
+            "frage": frage.get("frage"),
+            "selected_value": selected_value,
+            "korrekt": korrekt,
+            "is_correct": is_correct
+        })
+
+    questions_score = correct_count / total if total > 0 else 0
+
+    filtered = {
+        "results": results,
+        "correct_count": correct_count,
+        "total": total,
+        "questions_score": questions_score,
+    }
+    return {"status": "ok", "evaluation": filtered}
+
+
+class W1S5EvaluateRequest(BaseModel):
+    session_id: str
+    histogram_inputs: list[int]  # Array mit 21 Werten (für 0-20)
+
+@app.post("/evaluate-w1s5")
+def evaluate_w1s5(data: W1S5EvaluateRequest):
+    """Evaluate Welt1 Stufe5 Histogramm-Eingaben.
+
+    Vergleicht die User-Eingaben mit der echten Verteilung.
+    """
+    sid = data.session_id
+    if sid not in SESSIONS:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    generated = SESSIONS.get(sid, {}).get("distributions", {}).get("generated", {})
+    samples = generated.get("samples")
+    if not samples:
+        raise HTTPException(status_code=400, detail="No generated distribution for session")
+
+    # Berechne echtes Histogramm
+    true_histogram = [0] * 21
+    for value in samples:
+        val = max(0, min(20, round(value)))
+        true_histogram[val] += 1
+
+    # Vergleiche mit User-Eingaben
+    user_histogram = data.histogram_inputs
+    if len(user_histogram) != 21:
+        raise HTTPException(status_code=400, detail="Invalid histogram length")
+
+    # Berechne Abweichung (Mean Absolute Error)
+    total_error = 0
+    max_possible_error = 0
+    
+    for i in range(21):
+        true_val = true_histogram[i]
+        user_val = user_histogram[i]
+        error = abs(true_val - user_val)
+        total_error += error
+        max_possible_error += true_val  # Maximaler Fehler wäre wenn user alles falsch rät
+
+    # Score: 1.0 = perfekt, 0.0 = komplett falsch
+    # Verwende eine Formel die großzügiger ist
+    if max_possible_error > 0:
+        # Normalisiere auf 0-1, dann invertiere
+        normalized_error = total_error / (2 * max_possible_error)  # Division durch 2 macht es großzügiger
+        score = max(0.0, 1.0 - normalized_error)
+    else:
+        score = 1.0
+
+    score_percent = round(score * 100)
+
+    return {
+        "status": "ok",
+        "evaluation": {
+            "score": score_percent,
+            "total_error": total_error,
+            "max_possible_error": max_possible_error
+        }
+    }
 
 
 # --- Distribution endpoints (scaffold) ---
@@ -377,64 +536,5 @@ def submit_player_distribution(data: PlayerDistribution):
     SESSIONS[data.session_id].setdefault("submissions", [])
     SESSIONS[data.session_id]["submissions"].append({"samples": data.samples, "ts": int(time.time())})
 
-    # attempt comparison with ground_truth if available
-    distributions = SESSIONS[data.session_id].get("distributions", {})
-    gt = distributions.get("ground_truth") or distributions.get("generated")
-    if not gt:
-        return {"status": "ok", "message": "saved, no ground truth available for comparison yet"}
-
-    # Prüfe game_mode
-    game_mode = SESSIONS[data.session_id].get("game_mode", "color")
-    
-    if game_mode == "number":
-        # Verwende ZahlenEvaluator für Zahlenwerte
-        evaluator = ZahlenEvaluator(
-            ground_truth=gt["samples"],
-            player_values=data.samples,
-            pre_reveal_answers=data.pre_reveal_answers
-        )
-        result = evaluator.evaluate()
-        return {
-            "status": "ok",
-            "game_mode": "number",
-            **result  # Alle Metriken und Scores
-        }
-    else:
-        # Verwende DistributionEvaluator für Farbverteilung (Original)
-        evaluator = DistributionEvaluator(
-            ground_truth=gt["samples"],
-            player_distribution=data.samples
-        )
-        result = evaluator.evaluate()
-
-        # Kombiniere Score aus Wasserstein, MAE und TVD
-        wasserstein = result.get("wasserstein", 0.0)
-        mae = result.get("mae", 0.0)
-        tvd = result.get("tvd", 0.0)
-        # Gewichte: Wasserstein 0.5, MAE 0.3, TVD 0.2
-        a, b, c = 0.5, 0.3, 0.2
-        # Alle Metriken sind in [0,1] (MAE ist bereits normalisiert)
-        combined = a * wasserstein + b * mae + c * tvd
-        score = max(0, min(100, int(round((1.0 - combined) * 100))))
-
-        # Bestanden, wenn Score >= 90
-        passed = score >= 90
-
-        return {
-            "status": "ok",
-            "game_mode": "color",
-            "mse": result.get("mse"),
-            "mae": result.get("mae"),
-            "wasserstein": result.get("wasserstein"),
-            "tvd": result.get("tvd"),
-            "abs_mean_error": result.get("abs_mean_error"),
-            "abs_std_error": result.get("abs_std_error"),
-            "passed": passed,
-            "score": score,
-            "debug": {
-                "wasserstein": wasserstein,
-                "mae": mae,
-                "tvd": tvd,
-                "combined": combined
-            }
-        }
+    # Keine Bewertung mehr - nur speichern
+    return {"status": "ok", "message": "saved"}

@@ -36,7 +36,7 @@ class Stufe3Fragen:
                 'korrekt': str(self.peak_idx)
             },
             {
-                'frage': f'Wie oft hast du die Zahl {self.peak_idx} gesehen?',
+                'frage': f'Wie oft hast du diese Zahl gesehen?',
                 'korrekt': str(self.peak_count)
             },
             {

@@ -28,7 +28,7 @@ class Stufe4Fragen:
                 'korrekt': str(self.peak_idx)
             },
             {
-                'frage': f'Wie oft (ungefähr) kam diese Zahl vor?',
+                'frage': f'Wie oft kam diese Zahl vor?',
                 'korrekt': str(self.peak_count)
             },
             {

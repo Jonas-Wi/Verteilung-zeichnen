@@ -31,6 +31,10 @@ export default function NumberGame(props) {
 	const [stufe3Fragen, setStufe3Fragen] = useState([]);
 	const [stufe4Fragen, setStufe4Fragen] = useState([]);
 	const [stufe5Fragen, setStufe5Fragen] = useState([]);
+	const [referenceShown, setReferenceShown] = useState(false);
+	const [stufe3Ergebnisse, setStufe3Ergebnisse] = useState(null);
+	// Level 5: Tabelleneingabe statt Zeichnen (Array für Werte 0-20)
+	const [histogramInputs, setHistogramInputs] = useState(Array(21).fill(0));
 
 	// Callback für Spielende: Zeige Visualizer/Fragen
 	const handleGameEnd = (payload) => {
@@ -194,6 +198,23 @@ export default function NumberGame(props) {
 		}
 	}, [gameActive, sessionId, blockMode, level]);
 
+	// Level 5: Zeichne User-Eingaben als Balken
+	useEffect(() => {
+		if (level && level.stufe === 5 && visualizerRef.current && distributionRef.current && !evaluationResult) {
+			// Zeichne Achsen neu
+			visualizerRef.current.drawAxes(distributionRef.current);
+			// Zeichne graue Balken für die User-Eingaben
+			const userBars = histogramInputs.map((freq, value) => ({
+				value,
+				frequency: Number(freq) || 0
+			})).filter(bar => bar.frequency > 0);
+			
+			if (userBars.length > 0) {
+				visualizerRef.current.drawGuessBars(userBars);
+			}
+		}
+	}, [histogramInputs, level, evaluationResult]);
+
 
 	// Fragen für Stufe 1 und 2 aus level_info laden, wenn vorhanden
 	useEffect(() => {
@@ -222,16 +243,22 @@ export default function NumberGame(props) {
 		setPreRevealStage('revealDone');
 	}
 
-	function handleStufe3Fertig(antworten) {
+	function handleStufe3Fertig(antworten, ergebnisse) {
+		// Speichere die Ergebnisse für Gesamtscore
+		if (ergebnisse) {
+			setStufe3Ergebnisse(ergebnisse);
+		}
+		
 		// Antworten: [peak_value, peak_frequency, comparison(ja/nein), left_count, right_count]
 		const peakVal = Number(antworten?.[0]);
 		const peakFreq = Number(antworten?.[1]);
 		const comparison = (antworten?.[2] || '').toString();
 		const leftCount = Number(antworten?.[3]);
 		const rightCount = Number(antworten?.[4]);
+		
 		if (visualizerRef.current && distributionRef.current) {
 			visualizerRef.current.drawAxes(distributionRef.current);
-			// Echten Hochpunkt berechnen und anzeigen (wie zuvor)
+			// Echten Hochpunkt berechnen
 			const histogram = new Array(21).fill(0);
 			distributionRef.current.forEach(v => {
 				const val = Math.max(0, Math.min(20, Math.round(v)));
@@ -239,19 +266,31 @@ export default function NumberGame(props) {
 			});
 			const truePeakIdx = histogram.indexOf(Math.max(...histogram));
 			const truePeakCount = histogram[truePeakIdx];
-			// Zeige Hochpunkt sowie links/rechts daneben
 			const leftIdxSt3 = Math.max(0, truePeakIdx - 1);
 			const rightIdxSt3 = Math.min(20, truePeakIdx + 1);
-			const markersSt3 = [{ value: truePeakIdx, frequency: truePeakCount }];
-			if (leftIdxSt3 !== truePeakIdx) markersSt3.push({ value: leftIdxSt3, frequency: histogram[leftIdxSt3] });
-			if (rightIdxSt3 !== truePeakIdx) markersSt3.push({ value: rightIdxSt3, frequency: histogram[rightIdxSt3] });
-			visualizerRef.current.drawMultiplePeakMarkers(markersSt3);
-			// Zeichne zusätzlich graue Balken basierend auf den zuvor eingegebenen Schätzungen
-			visualizerRef.current.drawGuessBars([
-				{ value: truePeakIdx, frequency: peakFreq },
-				{ value: leftIdxSt3, frequency: leftCount },
-				{ value: rightIdxSt3, frequency: rightCount }
-			]);
+			
+			// Wenn nur 2 Antworten vorhanden (nach erster Auswertung): Zeige nur Hochpunkt-Marker
+			if (antworten.length === 2 || (!comparison && peakVal && peakFreq)) {
+				const markersSt3 = [{ value: truePeakIdx, frequency: truePeakCount }];
+				visualizerRef.current.drawMultiplePeakMarkers(markersSt3);
+				// Zeichne grauen Balken für User-Schätzung
+				visualizerRef.current.drawGuessBars([
+					{ value: peakVal, frequency: peakFreq }
+				]);
+			} else if (comparison) {
+				// Alle 5 Antworten vorhanden: Zeige Hochpunkt + Nachbarn
+				const markersSt3 = [{ value: truePeakIdx, frequency: truePeakCount }];
+				if (leftIdxSt3 !== truePeakIdx) markersSt3.push({ value: leftIdxSt3, frequency: histogram[leftIdxSt3] });
+				if (rightIdxSt3 !== truePeakIdx) markersSt3.push({ value: rightIdxSt3, frequency: histogram[rightIdxSt3] });
+				visualizerRef.current.drawMultiplePeakMarkers(markersSt3);
+				// Zeichne graue Balken für alle User-Schätzungen
+				visualizerRef.current.drawGuessBars([
+					{ value: peakVal, frequency: peakFreq },
+					{ value: leftCount !== undefined ? leftIdxSt3 : peakVal, frequency: leftCount || 0 },
+					{ value: rightCount !== undefined ? rightIdxSt3 : peakVal, frequency: rightCount || 0 }
+				]);
+			}
+			
 			visualizerRef.current.setPreRevealAnswers({
 				peak_value: peakVal,
 				peak_frequency: peakFreq,
@@ -261,8 +300,12 @@ export default function NumberGame(props) {
 				neighbor_right_count: rightCount
 			});
 		}
-		setPreRevealStage('ready');
-		visualizerRef.current?.setDrawMode(true);
+		
+		// Aktiviere Zeichenmodus nur, wenn alle Fragen beantwortet wurden
+		if (comparison) {
+			setPreRevealStage('ready');
+			visualizerRef.current?.setDrawMode(true);
+		}
 	}
 	function handleStufe2Fertig(antworten) {
 		setStufe2Antworten(antworten);
@@ -300,7 +343,7 @@ export default function NumberGame(props) {
 						) : null}
 						{/* Stufe 3: zeige Fragen+Auswertung vor dem Zeichnen */}
 						{inputMode !== 'multiple-choice' && inputMode !== 'freitext' && inputMode !== 'full-draw-no-questions' && preRevealStage && preRevealStage !== 'ready' && preRevealStage !== 'revealDone' && level && level.welt === 1 && level.stufe === 3 ? (
-							<W1S3Questions sessionId={sessionId} fragen={currentStufeFragen || []} onAntwortenFertig={handleStufe3Fertig} />
+						<W1S3Questions sessionId={sessionId} fragen={currentStufeFragen || []} onAntwortenFertig={handleStufe3Fertig} distributionLength={distributionRef.current ? distributionRef.current.length : 0} />
 						) : null}
 						{inputMode !== 'multiple-choice' && inputMode !== 'freitext' && inputMode !== 'full-draw-no-questions' && preRevealStage && preRevealStage !== 'ready' && preRevealStage !== 'revealDone' && !(level && level.welt === 1 && level.stufe === 3) && (
 							<div className="mb-3 p-3 bg-white border-2 border-gray-300 rounded-lg max-w-md text-gray-800">
@@ -405,14 +448,21 @@ export default function NumberGame(props) {
 												{(level && level.welt === 1 && (level.stufe === 4)) ? (
 													<>
 														<div className="font-bold mb-2">{currentStufeFragen?.[2]?.frage || 'War der Wert rechts vom Hochpunkt häufiger? (ja/nein)'}</div>
-														<div className="flex items-center gap-2">
-															<input
-																type="text"
-																value={comparisonInput}
-																onChange={(e) => setComparisonInput(e.target.value)}
-																className="px-3 py-2 border rounded w-32"
-																placeholder="ja/nein"
-															/>
+														<div className="flex gap-4">
+															<button
+																type="button"
+																className={`flex-1 px-4 py-2 rounded border-2 ${comparisonInput === 'ja' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-black border-gray-300'}`}
+																onClick={() => setComparisonInput('ja')}
+															>
+																Ja
+															</button>
+															<button
+																type="button"
+																className={`flex-1 px-4 py-2 rounded border-2 ${comparisonInput === 'nein' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-black border-gray-300'}`}
+																onClick={() => setComparisonInput('nein')}
+															>
+																Nein
+															</button>
 														</div>
 														{(level && level.welt === 1 && level.stufe === 3) && (
 															<div className="mt-4 space-y-3">
@@ -503,120 +553,203 @@ export default function NumberGame(props) {
 								)}
 							</div>
 						)}
-						{/* Canvas und Visualizer nur bei full-draw anzeigen */}
-						{(inputMode === 'full-draw' || inputMode === 'full-draw-no-questions') && (
-							<canvas ref={canvasRef} width={530} height={370} className="mx-auto border-2 border-gray-300 bg-white cursor-crosshair" />
+						{/* Canvas und Visualizer - für Level 5 nur anzeigen ohne Zeichenfunktion */}
+						{(inputMode === 'full-draw' || inputMode === 'full-draw-no-questions') && !evaluationResult && (
+							<>
+								{level && level.stufe === 5 ? (
+									<canvas ref={canvasRef} width={800} height={400} className="mx-auto border-2 border-gray-300 bg-white" />
+								) : (
+									<canvas ref={canvasRef} width={530} height={370} className="mx-auto border-2 border-gray-300 bg-white cursor-crosshair" />
+								)}
+								{/* Level 5: Histogramm-Tabelle für Werteeingabe */}
+								{level && level.stufe === 5 && (
+									<div className="mt-4 w-full max-w-[820px] mx-auto">
+										<h3 className="text-lg font-bold mb-3 text-center">Gib die Häufigkeit für jeden Wert ein:</h3>
+										<div className="bg-white border-2 border-gray-300 rounded p-4 overflow-x-auto">
+											<div className="flex gap-2 min-w-max">
+												{Array.from({ length: 21 }, (_, i) => i).map((value) => (
+													<div key={value} className="flex flex-col items-center">
+														<label className="text-xs font-semibold mb-1 text-gray-700 whitespace-nowrap">{value}</label>
+														<input
+															type="number"
+															min={0}
+															max={distributionRef.current ? distributionRef.current.length : 100}
+															value={histogramInputs[value]}
+															onChange={(e) => {
+																const newInputs = [...histogramInputs];
+																newInputs[value] = e.target.value;
+																setHistogramInputs(newInputs);
+															}}
+															className="w-12 px-1 py-2 border rounded text-center text-black text-sm"
+															placeholder="0"
+														/>
+													</div>
+												))}
+											</div>
+											<div className="text-sm text-gray-500 mt-3 text-center">
+												Tipp: Es gab insgesamt {distributionRef.current ? distributionRef.current.length : '?'} Ballons
+											</div>
+										</div>
+									</div>
+								)}
+							</>
+						)}
+						
+						{/* Gesamtscore für Level 3, 4 und 5 anzeigen */}
+						{evaluationResult && level && level.welt === 1 && (level.stufe === 3 || level.stufe === 4 || level.stufe === 5) && (
+							<div className="w-full max-w-md mx-auto mt-8">
+								<h2 className="text-2xl font-bold mb-4 text-center">Gesamtergebnis</h2>
+								<div className="bg-blue-100 p-6 rounded-lg text-center">
+									<div className="text-4xl font-bold text-blue-800 mb-2">{evaluationResult.score}%</div>
+									<div className="text-xl text-gray-800 mb-4">
+										{evaluationResult.correct_count} von {evaluationResult.total} Fragen richtig
+									</div>
+									<div className={`text-lg font-bold ${evaluationResult.score >= 60 ? 'text-green-700' : 'text-red-700'}`}>
+										{evaluationResult.score >= 60 ? '✓ Bestanden' : '✗ Nicht bestanden'}
+									</div>
+								</div>
+							</div>
 						)}
 					</div>
 					<div className="text-center mt-4 flex justify-center flex-wrap gap-2">
 						{/* Buttons nur anzeigen, wenn Zeichnen erlaubt ist */}
 						{(inputMode === 'full-draw' || inputMode === 'full-draw-no-questions') && !evaluationResult ? (
 							<>
-								<button 
-									onClick={() => visualizerRef.current?.clear()}
-									className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-								>
-									Löschen
-								</button>
-								<button 
-									onClick={async () => {
-										if (!visualizerRef.current?.hasDrawing()) {
-											alert('Bitte zeichne zuerst eine Verteilung!');
-											return;
-										}
-										if (preRevealStage !== 'ready' && preRevealStage !== 'revealDone') {
-											alert('Bitte beantworte erst alle Fragen bevor du evaluierst!');
-											return;
-										}
-										if (preRevealStage !== 'revealDone' && distributionRef.current && visualizerRef.current) {
-											// Marker + Truth Bars sind bereits sichtbar, zeige nur die volle Verteilung
-											visualizerRef.current.drawCombined(distributionRef.current);
-											visualizerRef.current.setReadOnly(true);
-											setPreRevealStage('revealDone');
-										}
-										const result = await visualizerRef.current?.evaluateDrawing();
-										if (result) {
-											setEvaluationResult(result);
-											visualizerRef.current?.drawCombined(distributionRef.current);
-											visualizerRef.current?.setReadOnly(true);
-										}
-									}}
-									disabled={!(preRevealStage === 'ready' || preRevealStage === 'revealDone')}
-									className={`px-4 py-2 rounded ${preRevealStage === 'ready' || preRevealStage === 'revealDone' ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-gray-300 text-gray-600 opacity-50 cursor-not-allowed'}`}
-								>
-									Evaluieren
-								</button>
-							</>
-						) : (inputMode === 'full-draw' || inputMode === 'full-draw-no-questions') ? (
-							<>
-								<button 
-									onClick={() => {
-										visualizerRef.current?.drawCombined(distributionRef.current);
-										visualizerRef.current?.setReadOnly(true);
-									}}
-									className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
-								>
-									Referenz anzeigen
-								</button>
-								<button 
-									onClick={() => {
-										distributionRef.current = null;
-										visualizerRef.current = null;
-										setGameActive(true);
-										setEvaluationResult(null);
-										setPreRevealStage(null);
-										setGuessPeakValue(null);
-										setGuessPeakFrequency(null);
-										setPeakValueInput('');
-										setPeakFrequencyInput('');
-										setAdditionalPeaks([]);
-										setAdditionalValueInput('');
-										setAdditionalFreqInput('');
-										setComparisonInput('');
-										if (onRestartGame) {
-											onRestartGame();
-										}
-									}}
-									className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
-								>
-									Spiel neu starten
-								</button>
+								{preRevealStage !== 'revealDone' ? (
+									<>
+										<button 
+											onClick={() => visualizerRef.current?.clear()}
+											className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+										>
+											Löschen
+										</button>
+										<button 
+											onClick={async () => {
+												// Level 5: Keine Zeichnung erforderlich
+												if (level && level.stufe === 5) {
+													if (preRevealStage !== 'revealDone' && distributionRef.current && visualizerRef.current) {
+														visualizerRef.current.drawCombined(distributionRef.current, true);
+														visualizerRef.current.setReadOnly(true);
+														setPreRevealStage('revealDone');
+													}
+													return;
+												}
+												// Andere Level: Prüfe ob Zeichnung vorhanden
+												if (!visualizerRef.current?.hasDrawing()) {
+													alert('Bitte zeichne zuerst eine Verteilung!');
+													return;
+												}
+												if (preRevealStage !== 'ready' && preRevealStage !== 'revealDone') {
+													alert('Bitte beantworte erst alle Fragen bevor du evaluierst!');
+													return;
+												}
+												if (preRevealStage !== 'revealDone' && distributionRef.current && visualizerRef.current) {
+													// Marker + Truth Bars sind bereits sichtbar, zeige nur die volle Verteilung
+													visualizerRef.current.drawCombined(distributionRef.current);
+													visualizerRef.current.setReadOnly(true);
+													setPreRevealStage('revealDone');
+												}
+											}}
+											disabled={!(preRevealStage === 'ready' || (level && level.stufe === 5))}
+											className={`px-4 py-2 rounded ${(preRevealStage === 'ready' || (level && level.stufe === 5)) ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-gray-300 text-gray-600 opacity-50 cursor-not-allowed'}`}
+										>
+											Referenzkurve anzeigen
+										</button>
+									</>
+								) : (
+									<button 
+										onClick={async () => {
+											// Level 3: Berechne aus den beiden Teilergebnissen
+											if (level && level.stufe === 3 && stufe3Ergebnisse) {
+												const { step1Ergebnis, step2Ergebnis } = stufe3Ergebnisse;
+												const total = (step1Ergebnis?.total || 0) + (step2Ergebnis?.total || 0);
+												const correct = (step1Ergebnis?.correct_count || 0) + (step2Ergebnis?.correct_count || 0);
+												const score = total > 0 ? Math.round((correct / total) * 100) : 0;
+												
+												setEvaluationResult({
+													score,
+													total,
+													correct_count: correct
+												});
+											}
+											// Level 4: Evaluiere die Fragen via Backend
+											else if (level && level.stufe === 4) {
+												try {
+													const antworten = [
+														String(guessPeakValue),
+														String(guessPeakFrequency),
+														String(comparisonInput)
+													];
+													const res = await fetch('http://127.0.0.1:3000/evaluate-w1s4', {
+														method: 'POST',
+														headers: { 'Content-Type': 'application/json' },
+														body: JSON.stringify({ session_id: sessionId, antworten })
+													});
+													if (!res.ok) {
+														const t = await res.text();
+														console.error('evaluate-w1s4 failed:', res.status, t);
+														alert('Serverfehler bei der Auswertung');
+														return;
+													}
+													const json = await res.json();
+													if (json?.status === 'ok' && json.evaluation) {
+														const ev = json.evaluation;
+														const score = Math.round(ev.questions_score * 100);
+														setEvaluationResult({
+															score,
+															total: ev.total,
+															correct_count: ev.correct_count
+														});
+													} else {
+														console.error('unexpected response', json);
+														alert('Ungültige Serverantwort');
+													}
+												} catch (e) {
+													console.error(e);
+													alert('Netzwerkfehler bei der Auswertung');
+												}
+											}
+											// Level 5: Evaluiere Histogramm-Eingaben
+											else if (level && level.stufe === 5) {
+												try {
+													const histogram_inputs = histogramInputs.map(v => Number(v) || 0);
+													const res = await fetch('http://127.0.0.1:3000/evaluate-w1s5', {
+														method: 'POST',
+														headers: { 'Content-Type': 'application/json' },
+														body: JSON.stringify({ session_id: sessionId, histogram_inputs })
+													});
+													if (!res.ok) {
+														const t = await res.text();
+														console.error('evaluate-w1s5 failed:', res.status, t);
+														alert('Serverfehler bei der Auswertung');
+														return;
+													}
+													const json = await res.json();
+													if (json?.status === 'ok' && json.evaluation) {
+														const ev = json.evaluation;
+														setEvaluationResult({
+															score: ev.score,
+															total: 21,  // 21 Werte (0-20)
+															correct_count: Math.round((ev.score / 100) * 21)
+														});
+													} else {
+														console.error('unexpected response', json);
+														alert('Ungültige Serverantwort');
+													}
+												} catch (e) {
+													console.error(e);
+													alert('Netzwerkfehler bei der Auswertung');
+												}
+											}
+										}}
+										className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+									>
+										Gesamtscore anzeigen
+									</button>
+								)}
 							</>
 						) : null}
 					</div>
-					{evaluationResult && (
-						<div className="mt-6 p-4 bg-white border-2 border-gray-300 rounded-lg max-w-lg mx-auto">
-							<div className="flex items-center justify-between mb-3">
-								<h3 className="text-lg font-bold text-gray-800">Auswertung</h3>
-								<div className={`px-3 py-1 rounded-full text-sm font-semibold ${evaluationResult.passed ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
-									{evaluationResult.passed ? 'Bestanden' : 'Nicht bestanden'}
-								</div>
-							</div>
-							<div className="mb-3">
-								<div className="flex items-baseline justify-between">
-									<div className="text-2xl font-bold text-gray-800">{evaluationResult.score}%</div>
-									<div className="text-sm text-gray-600">Score</div>
-								</div>
-								<div className="w-full bg-gray-200 h-2 rounded mt-2">
-									<div className="bg-blue-500 h-2 rounded" style={{ width: `${Math.max(0, Math.min(100, evaluationResult.score))}%` }} />
-								</div>
-							</div>
-							<div className="space-y-2">
-								<div className="text-xs font-semibold text-gray-600 mt-3 mb-2">Pre-Reveal Antworten (30%)</div>
-								<MetricRow label="Peak-Wert Score" value={evaluationResult.peak_value_score} max={1} precision={3} color="bg-cyan-400" />
-								<MetricRow label="Peak-Häufigkeit Score" value={evaluationResult.peak_frequency_score} max={1} precision={3} color="bg-cyan-400" />
-								<MetricRow label="Zusätzliche Peaks Score" value={evaluationResult.additional_peaks_score} max={1} precision={3} color="bg-cyan-400" />
-								<div className="text-xs font-semibold text-gray-600 mt-3 mb-2">Verteilungsmetriken (70%)</div>
-								<MetricRow label="MAE Score (30%)" value={evaluationResult.mae_score} max={1} precision={3} color="bg-yellow-400" />
-								<MetricRow label="Wasserstein Score (25%)" value={evaluationResult.wasserstein_score} max={1} precision={3} color="bg-red-400" />
-								<MetricRow label="Mean Error Score (15%)" value={evaluationResult.mean_error_score} max={1} precision={3} color="bg-green-400" />
-								<div className="text-xs font-semibold text-gray-600 mt-3 mb-2">Rohe Metriken</div>
-								<MetricRow label="MAE" value={evaluationResult.mae} max={1} precision={4} color="bg-yellow-300" />
-								<MetricRow label="Wasserstein Distance" value={evaluationResult.wasserstein_distance} max={1} precision={4} color="bg-red-300" />
-								<MetricRow label="Abs. Mittelwertfehler" value={evaluationResult.abs_mean_error} max={20} precision={2} color="bg-green-300" suffix=" units" />
-							</div>
-						</div>
-					)}
 				</div>
 			)}
 		</div>

@@ -76,12 +76,13 @@ export class NumberDistributionVisualizer extends BaseDistributionVisualizer {
     this.ctx.fillStyle = "black";
     this.ctx.textAlign = "center";
     this.ctx.fillText("Zahlenwert (0-20)", left + plotW / 2, bottom + 35);
-    this.ctx.textAlign = "left";
-    this.ctx.fillText("0", left, bottom + 55);
+    
+    // X-Achse: Beschriftung alle 2 Einheiten (0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20)
     this.ctx.textAlign = "center";
-    this.ctx.fillText("10", left + plotW / 2, bottom + 55);
-    this.ctx.textAlign = "right";
-    this.ctx.fillText("20", right, bottom + 55);
+    for (let i = 0; i <= 20; i += 2) {
+      const xPos = left + (i / 20) * plotW;
+      this.ctx.fillText(i.toString(), xPos, bottom + 20);
+    }
 
     // Re-draw overlays (guess bars and peak markers) after axes
     if (this.overlayGuessBars && this.overlayGuessBars.length > 0) {
@@ -310,11 +311,26 @@ export class NumberDistributionVisualizer extends BaseDistributionVisualizer {
     this.ctx.restore();
   }
 
-  drawCombined(distribution) {
+  drawCombined(distribution, keepGuessBars = false) {
+    // Verstecke Guess Bars und Marker beim Anzeigen der Referenzkurve (außer wenn keepGuessBars=true)
+    const savedGuessBars = this.overlayGuessBars;
+    const savedMarkers = this.overlayMarkers;
+    
+    if (!keepGuessBars) {
+      this.overlayGuessBars = null;
+      this.overlayMarkers = null;
+    }
+    
     this.drawAxes(distribution);
-    this.drawDistribution(distribution, 'rgba(200,200,200,0.95)');
+    // drawDistribution entfernt - nur noch gezeichneter Graph und Referenzkurve
     this.drawContinuous(distribution, 'red');
     this.drawUserStroke('black');
+    
+    // Für Level 5: Stelle Guess Bars wieder her
+    if (keepGuessBars && savedGuessBars) {
+      this.overlayGuessBars = savedGuessBars;
+      this.drawGuessBars(savedGuessBars);
+    }
   }
 
   drawReference(ref) {
