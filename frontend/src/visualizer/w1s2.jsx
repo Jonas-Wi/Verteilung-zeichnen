@@ -236,10 +236,15 @@ export default function W1S2Freitext({ sessionId, fragen, onAntwortenFertig }) {
                         <button
                             className="px-4 py-2 bg-green-600 text-white rounded"
                             onClick={() => {
-                                // Nach der Gesamtauswertung zurück zum Leiterspiel, direkt Welt 1
+                                // Nach der Gesamtauswertung zurück zum Leiterspiel mit Score (wie Stufe 1)
                                 const base = window.location.origin;
                                 const params = new URLSearchParams();
+                                const score = Math.max(0, Math.min(100, Math.round(gesamtErgebnis.score || 0)));
+                                params.set('mode', 'number');
                                 params.set('welt', '1');
+                                params.set('stufe', '2');
+                                params.set('score', String(score));
+                                params.set('src', 'w1s2');
                                 window.location.href = base + "/leiterspiel/LEITERSPIELFINAL.html?" + params.toString();
                             }}
                         >

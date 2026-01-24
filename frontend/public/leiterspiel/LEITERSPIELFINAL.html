@@ -2171,43 +2171,39 @@ function enterWorld2(){
   
 
   // Initial: Welt-Auswahl updaten
-  // Prüfe eingehende Scores aus dem Spiel (Query-Parameter)
+  // Prüfe eingehende Scores aus dem Spiel (Query-Parameter) → öffne Modal und befülle Prozent
   (function storeIncomingScoreFromURL(){
     try{
       const sp = new URLSearchParams(window.location.search);
       const welt  = parseInt(sp.get('welt') || '', 10);
       const stufe = parseInt(sp.get('stufe') || '', 10);
       const score = parseFloat(sp.get('score') || '');
-      const src   = sp.get('src') || '';
-      if (!isNaN(welt) && !isNaN(stufe) && !isNaN(score)){
-        const key = 'goldpfad_level_scores';
-        let store = {};
-        try { store = JSON.parse(localStorage.getItem(key) || '{}'); } catch {}
-        // Mappe auf Level-ID (hier nur Welt 1 unterstützt)
-        let lvlId = null;
-        if (welt === 1 && stufe >= 1 && stufe <= 6){
-          lvlId = 'L' + stufe;
-        }
-        if (lvlId){
-          store[lvlId] = { score: score, src: src || 'unknown', updatedAt: Date.now() };
-          localStorage.setItem(key, JSON.stringify(store));
-          // Optional: kurze Toast anzeigen
-          try {
-            const t = document.getElementById('worldUnlockToast');
-            if (t){
-              t.textContent = `Score gespeichert: ${lvlId} = ${Math.round(score)}%`;
-              t.classList.add('show');
-              setTimeout(() => t.classList.remove('show'), 2400);
-            }
-          } catch {}
-          // Direkt in Welt 1 wechseln
-          if (welt === 1) {
-            showView('world1View');
-          }
-        }
-        // Entferne Query aus der URL, um erneute Speicherung zu vermeiden
-        try { history.replaceState(null, '', window.location.pathname); } catch {}
+      if (isNaN(welt) || isNaN(stufe) || isNaN(score)) return;
+
+      // Nur Welt 1 aktuell gemappt: L1..L6
+      const lvlId = (welt === 1 && stufe >= 1 && stufe <= 6) ? ('L' + stufe) : null;
+      if (!lvlId) return;
+      const lvl = LEVELS.find(l => l.id === lvlId);
+      if (!lvl) return;
+
+      // In Welt 1 wechseln und Modal öffnen
+      showView('world1View');
+      activeLevel = lvl;
+      openRoundModal(lvl);
+
+      // Prozentfeld mit Spiele-Score vorbefüllen (ersetzt manuelles Eingeben)
+      const input = document.getElementById('percentInput');
+      if (input) {
+        const percent = Math.max(0, Math.min(100, Math.round(Number(score))));
+        input.value = percent;
+        try { input.disabled = true; input.setAttribute('aria-disabled','true'); } catch {}
       }
+
+      // Krieger an die Levelposition setzen
+      requestAnimationFrame(() => { if (lvl.pos) popWarriorTo(lvl.pos.x, lvl.pos.y); });
+
+      // Query aus URL entfernen, um erneute Übernahme zu vermeiden
+      try { history.replaceState(null, '', window.location.pathname); } catch {}
     }catch(e){ console.warn('storeIncomingScoreFromURL failed', e); }
   })();
 
