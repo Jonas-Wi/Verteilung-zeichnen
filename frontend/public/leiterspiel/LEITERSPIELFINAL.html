@@ -24,7 +24,7 @@
 
 /* 🌲 Hintergrund für Wald-Map + Welt-Auswahl */
 body.bg-forest{
-      background-image: url("./DüstererWald.jpg.webp");
+  background-image: url("./minispiel/DüstererWald.jpg.webp");
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
@@ -33,7 +33,7 @@ body.bg-forest{
 
 /* 🔥 Hintergrund für Lava-Map */
 body.bg-lava{
-      background-image: url("./Lava.png");
+  background-image: url("./minispiel/Lava.png");
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
@@ -203,8 +203,8 @@ body.bg-lava{
       height:46px;
       background: linear-gradient(180deg, rgba(120,255,210,.95), rgba(34,211,238,.45));
       filter: drop-shadow(0 8px 10px rgba(0,0,0,.25));
-      -webkit-mask-image: url("./Tor2.png");
-      mask-image: url("./Tor2.png");
+      -webkit-mask-image: url("./minispiel/Torfinale.png");
+      mask-image: url("./minispiel/Torfinale.png");
       -webkit-mask-repeat: no-repeat;
       mask-repeat: no-repeat;
       -webkit-mask-position: center;
@@ -788,7 +788,7 @@ body.bg-lava{
 
         <!-- Welt 1 -->
         <article class="worldCard" id="world1Card">
-          <div class="worldArt" style="background-image:url('./DüstererWald.jpg.webp');"></div>
+          <div class="worldArt" style="background-image:url('./minispiel/DüstererWald.jpg.webp');"></div>
           <div class="worldBody">
             <div class="worldTopRow">
               <h3 class="worldTitle">Wald-Map</h3>
@@ -807,7 +807,7 @@ body.bg-lava{
 
         <!-- Welt 2 -->
         <article class="worldCard lockedCard" id="world2Card">
-          <div class="worldArt" style="background-image:url('./Lava.png');">
+          <div class="worldArt" style="background-image:url('./minispiel/Lava.png');">
   <div class="worldLockIcon" id="world2LockIcon" aria-hidden="true">🔒</div>
 </div>
 
@@ -876,7 +876,7 @@ body.bg-lava{
         <svg id="edges" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
         <div class="popRing" id="popRing" aria-hidden="true"></div>
         <div class="warrior" id="warrior" aria-hidden="true">
-          <img src="./Krieger.png" alt="">
+          <img src="./minispiel/Krieger.png" alt="">
         </div>
       </div>
     </div>
@@ -1455,15 +1455,15 @@ function updateRanking(){
 
   function gateHtmlFor(level, st){
     if (st !== "completed"){
-      return `<img class="gate" src="./Tor.png" alt="" aria-hidden="true">`;
+      return `<img class="gate" src="./minispiel/Tor.png" alt="" aria-hidden="true">`;
     }
     if (level.id === "L5"){
       return `
         <div class="gate-open" aria-hidden="true"></div>
-        <img class="treasure" src="./Schatz.png" alt="" aria-hidden="true">
+        <img class="treasure" src="./minispiel/Schatz.png" alt="" aria-hidden="true">
       `;
     }
-    return `<img class="gate" src="./Torfinale.png" alt="" aria-hidden="true">`;
+    return `<img class="gate" src="./minispiel/Torfinale.png" alt="" aria-hidden="true">`;
   }
 
   function renderNodes(){
