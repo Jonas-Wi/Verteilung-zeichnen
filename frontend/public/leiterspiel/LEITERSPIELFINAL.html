@@ -1629,6 +1629,7 @@ function updateRanking(){
     const oldPercent = Number((state.percents && state.percents[levelId]) || 0);
     state.percents[levelId] = Math.max(oldPercent, percent);
 
+    write(state); // Sterne und Prozente sofort speichern
     updateStatusPanel(newStars);
     return { newStars, bestStars };
   }
@@ -1864,79 +1865,6 @@ mCancel.onclick = closeRoundModal;
 mNo.onclick     = () => completeActiveLevel(false);
 mYes.onclick    = () => completeActiveLevel(true);
 
-
-  function completeActiveLevel(success){
-    if (!activeLevel) return;
-
-    const completedId = activeLevel.id;
-
-    if (success) {
-      if (!activeLevel.isBonus) {
-        const { bestStars } = awardStarsOnComplete(activeLevel.id);
-
-        if (bestStars < 1) {
-          state.failed[activeLevel.id] = true;
-          write(state);
-          closeRoundModal();
-          renderAll();
-          updateWorldSelectUI();
-          return;
-        } else {
-          if (state.failed) delete state.failed[activeLevel.id];
-        }
-      } else {
-        if (state.failed) delete state.failed[activeLevel.id];
-      }
-
-      state.completed[activeLevel.id] = true;
-      write(state);
-      updateRanking();
-
-        if (completedId === "L5") {
-      coinRain(10500);
-      // ✨ Welten-Button hervorheben
-      const weltenBtn = document.getElementById("backToWorldSelectBtn");
-      if (weltenBtn) weltenBtn.classList.add("glowPulse");
-    }
-    if (completedId === "L6") {
-      coinRain(12500);
-    }
-
-    } else {
-      if (!activeLevel.isBonus) {
-        state.failed[activeLevel.id] = true;
-      }
-      write(state);
-      closeRoundModal();
-      renderAll();
-      updateWorldSelectUI();
-      return;
-    }
-
-    closeRoundModal();
-    renderAll();
-
-    if (success) {
-      const nextId = getNextLinearLevelId(completedId);
-      if (nextId) {
-        const nextLevel = LEVELS.find(l => l.id === nextId);
-        if (nextLevel && statusOf(nextLevel) === "available") {
-          const fromId = completedId;
-          state.last = nextId;
-          write(state);
-          traversePath(fromId, nextId, { durationPerHop: 860 });
-        }
-      }
-    }
-
-    // ✅ Unlock World 2 when L5 completed
-    if (isCompleted("L5")) setWorld2Unlocked();
-
-    maybeShowFinale();
-    maybeShowEpilog();
-    updateWorldSelectUI();
-  }
-
   mCancel.onclick = closeRoundModal;
   mNo.onclick     = () => completeActiveLevel(false);
   mYes.onclick    = () => completeActiveLevel(true);
@@ -2021,11 +1949,13 @@ function showRanking(){
     const sa = a.stars || 0, sb = b.stars || 0;
     if (sb !== sa) return sb - sa;
 
-    const ta = a.updatedAt || 0, tb = b.updatedAt || 0;
-    if (tb !== ta) return tb - ta;
-
+    // Bei gleichen Sternen: Sortiere nach Prozent (höher ist besser)
     const pa = a.percent || 0, pb = b.percent || 0;
-    return pb - pa;
+    if (pb !== pa) return pb - pa;
+
+    // Bei gleichen Sternen und Prozent: Sortiere nach neuesten zuerst
+    const ta = a.updatedAt || 0, tb = b.updatedAt || 0;
+    return tb - ta;
   });
 
 
@@ -2060,6 +1990,7 @@ function showRanking(){
       else if (i === 2) { medal="🥉"; bg="rgba(245,158,11,0.12)"; }
 
       const stars = r.stars ?? r.score ?? 0;
+      const percent = r.percent ?? 0;
 
       const isMe = (playerName && r.name === playerName);
       const border = isMe ? "1px solid rgba(59,130,246,0.9)" : "1px solid transparent";
@@ -2075,7 +2006,7 @@ function showRanking(){
             border:${border};
           ">
           <span>${medal || (i+1 + ".")} ${r.name}</span>
-          <span>⭐ ${stars}</span>
+          <span>⭐ ${stars} <span style="color:#6b7280;font-size:0.9em;">(${percent}%)</span></span>
         </div>`;
     }).join("");
 
@@ -2178,6 +2109,7 @@ function enterWorld2(){
       const welt  = parseInt(sp.get('welt') || '', 10);
       const stufe = parseInt(sp.get('stufe') || '', 10);
       const score = parseFloat(sp.get('score') || '');
+      const autoComplete = sp.get('autoComplete') === '1' || sp.get('autocomplete') === '1';
       if (isNaN(welt) || isNaN(stufe) || isNaN(score)) return;
 
       // Nur Welt 1 aktuell gemappt: L1..L6
@@ -2189,18 +2121,37 @@ function enterWorld2(){
       // In Welt 1 wechseln und Modal öffnen
       showView('world1View');
       activeLevel = lvl;
-      openRoundModal(lvl);
-
-      // Prozentfeld mit Spiele-Score vorbefüllen (ersetzt manuelles Eingeben)
-      const input = document.getElementById('percentInput');
-      if (input) {
+      
+      if (autoComplete) {
+        // Automatisch abschließen ohne Modal zu öffnen
         const percent = Math.max(0, Math.min(100, Math.round(Number(score))));
-        input.value = percent;
-        try { input.disabled = true; input.setAttribute('aria-disabled','true'); } catch {}
-      }
+        
+        // Temporär das Prozentfeld setzen (auch wenn Modal nicht sichtbar)
+        const input = document.getElementById('percentInput');
+        if (input) {
+          input.value = percent;
+        }
+        
+        // Level automatisch als geschafft markieren
+        completeActiveLevel(true);
+        
+        // Krieger an die Levelposition setzen
+        requestAnimationFrame(() => { if (lvl.pos) popWarriorTo(lvl.pos.x, lvl.pos.y); });
+      } else {
+        // Modal öffnen für manuelle Bestätigung
+        openRoundModal(lvl);
 
-      // Krieger an die Levelposition setzen
-      requestAnimationFrame(() => { if (lvl.pos) popWarriorTo(lvl.pos.x, lvl.pos.y); });
+        // Prozentfeld mit Spiele-Score vorbefüllen (ersetzt manuelles Eingeben)
+        const input = document.getElementById('percentInput');
+        if (input) {
+          const percent = Math.max(0, Math.min(100, Math.round(Number(score))));
+          input.value = percent;
+          try { input.disabled = true; input.setAttribute('aria-disabled','true'); } catch {}
+        }
+
+        // Krieger an die Levelposition setzen
+        requestAnimationFrame(() => { if (lvl.pos) popWarriorTo(lvl.pos.x, lvl.pos.y); });
+      }
 
       // Query aus URL entfernen, um erneute Übernahme zu vermeiden
       try { history.replaceState(null, '', window.location.pathname); } catch {}

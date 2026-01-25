@@ -120,8 +120,7 @@ export default function W1S1MultipleChoice({ sessionId, fragen, onAntwortenFerti
 									const params = new URLSearchParams();
 									params.set('welt', '1');
 									params.set('stufe', '1');
-									params.set('score', String(ergebnis?.score ?? 0));
-									params.set('src', 'w1s1');
+									params.set('score', String(ergebnis?.score ?? 0));								params.set('autoComplete', '1');									params.set('src', 'w1s1');
 									window.location.href = base + "/leiterspiel/LEITERSPIELFINAL.html?" + params.toString();
 								}}
 							>

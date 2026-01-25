@@ -343,6 +343,11 @@ export default function NumberGame(props) {
 		const base = window.location.origin;
 		const params = new URLSearchParams();
 		params.set('welt', String((level && level.welt) ? level.welt : 1));
+		params.set('stufe', String((level && level.stufe) ? level.stufe : 1));
+		if (evaluationResult && typeof evaluationResult.score === 'number') {
+			params.set('score', String(evaluationResult.score));
+			params.set('autoComplete', '1'); // Automatisch abschließen
+		}
 		window.location.href = base + "/leiterspiel/LEITERSPIELFINAL.html?" + params.toString();
 	}
 

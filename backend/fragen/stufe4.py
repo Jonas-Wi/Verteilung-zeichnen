@@ -13,8 +13,12 @@ class Stufe4Fragen:
         self.hist = self.evaluator._to_histogram(ground_truth, bins=21)
         self.counts = [int(round(h * len(ground_truth))) for h in self.hist]
         self.total_samples = len(ground_truth)
-        self.peak_idx = self.counts.index(max(self.counts)) if any(self.counts) else 0
-        self.peak_count = self.counts[self.peak_idx] if any(self.counts) else 0
+        
+        # Finde ALLE Zahlen mit der maximalen Häufigkeit
+        max_count = max(self.counts) if any(self.counts) else 0
+        self.peak_indices = [i for i, count in enumerate(self.counts) if count == max_count]
+        self.peak_idx = self.peak_indices[0] if self.peak_indices else 0  # Erste als Standard
+        self.peak_count = max_count
         self.ground_truth = ground_truth
         
         # Für Frage 3: Vergleiche mu+1 mit mu-2
@@ -57,7 +61,8 @@ class Stufe4Fragen:
         self.fragen = [
             {
                 'frage': 'Welche Zahl hast du am häufigsten gesehen?',
-                'korrekt': str(self.peak_idx)
+                'korrekt': str(self.peak_idx),
+                'akzeptabel': [str(idx) for idx in self.peak_indices]  # Alle gleich häufigen Zahlen
             },
             {
                 'frage': f'Wie oft kam diese Zahl vor?',

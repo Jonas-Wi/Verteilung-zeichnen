@@ -40,16 +40,27 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 		class MainScene extends Phaser.Scene {
 			constructor() {
 				super({ key: "MainScene" });
-			this.timer = 3; // Sekunden (angepasst)
+			this.timer = 20; // Sekunden (angepasst)
 				this.distribution = null;
 				this.blockValues = [];
 				this.balloonSpawner = null;
 				this.blockIndexMap = new Map();
 				this.gameMode = null;
 			}
-			preload() {}
+			preload() {
+				// Lade Hintergrundbild
+				this.load.image('forestBg', '/leiterspiel/minispiel/DüstererWald.jpg.webp');
+			}
 			create() {
-				this.cameras.main.setBackgroundColor(0xf0f0f0);
+				// Hintergrundbild hinzufügen und skalieren
+				const bg = this.add.image(WIDTH / 2, HEIGHT / 2, 'forestBg');
+				bg.setDisplaySize(WIDTH, HEIGHT);
+				bg.setDepth(-1);
+				
+				// Dunkles Overlay für bessere Lesbarkeit
+				const overlay = this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x000000, 0.3);
+				overlay.setDepth(0);
+				
 				this.gameMode = gameModeRef.current;
 				this.physics.world.setBounds(0, 0, WIDTH, HEIGHT);
 				this.paddle = this.add.rectangle(WIDTH / 2, HEIGHT - 40, 120, 16, 0xFF0000);
@@ -95,7 +106,12 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 				});
 				this.physics.add.collider(this.balloonsGroup, wallGroup);
 				this.physics.add.collider(this.ball, this.blocksGroup, this.handleBlockCollision, null, this);
-				this.timerText = this.add.text(10, 10, `Zeit: ${this.timer}`, { font: "18px Arial", fill: "#000" }).setDepth(10);
+				this.timerText = this.add.text(10, 10, `Zeit: ${this.timer}`, { 
+					font: "bold 20px Arial", 
+					fill: "#ffffff",
+					stroke: "#000000",
+					strokeThickness: 3
+				}).setDepth(10);
 				this.timeEvent = this.time.addEvent({ delay: 1000, callback: this.onTick, callbackScope: this, loop: true });
 				this.ended = false;
 				this.input.on('pointermove', pointer => {

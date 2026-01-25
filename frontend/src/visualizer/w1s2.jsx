@@ -244,6 +244,7 @@ export default function W1S2Freitext({ sessionId, fragen, onAntwortenFertig }) {
                                 params.set('welt', '1');
                                 params.set('stufe', '2');
                                 params.set('score', String(score));
+                                params.set('autoComplete', '1');
                                 params.set('src', 'w1s2');
                                 window.location.href = base + "/leiterspiel/LEITERSPIELFINAL.html?" + params.toString();
                             }}

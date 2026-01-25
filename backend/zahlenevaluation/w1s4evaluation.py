@@ -85,6 +85,7 @@ class W1S4Evaluation:
         
         for idx, frage in enumerate(self.fragen):
             korrekt = frage.get("korrekt")
+            akzeptabel = frage.get("akzeptabel", None)  # Liste von akzeptablen Antworten
             selected_value = self.antworten[idx].strip() if idx < len(self.antworten) and self.antworten[idx] is not None else None
             is_correct = False
             
@@ -102,7 +103,11 @@ class W1S4Evaluation:
                     else:
                         is_correct = str(selected_value) == str(korrekt)
                 else:
-                    is_correct = str(selected_value) == str(korrekt)
+                    # Prüfe zuerst, ob es eine Liste von akzeptablen Antworten gibt
+                    if akzeptabel is not None and isinstance(akzeptabel, list):
+                        is_correct = str(selected_value) in akzeptabel
+                    else:
+                        is_correct = str(selected_value) == str(korrekt)
             
             if is_correct:
                 correct_count += 1

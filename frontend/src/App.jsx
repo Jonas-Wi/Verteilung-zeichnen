@@ -221,15 +221,25 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center">
-      <h1 className="text-4xl font-bold mt-6">Perception Game</h1>
+    <div 
+      className="min-h-screen text-white flex flex-col items-center relative"
+      style={{
+        background: sessionId 
+          ? `linear-gradient(rgba(17, 24, 39, 0.85), rgba(17, 24, 39, 0.92)), url('/leiterspiel/minispiel/DüstererWald.jpg.webp')`
+          : '#111827',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}
+    >
+      <h1 className="text-4xl font-bold mt-6 relative z-10">Perception Game</h1>
 
       {!sessionId && (
-        <div className="mt-6 max-w-2xl text-center mx-auto px-4">
+        <div className="mt-6 max-w-2xl text-center mx-auto px-4 relative z-10">
           <p className="mb-6 text-gray-200 text-lg">Wähle den Spielmodus:</p>
           
           <div className="flex flex-col gap-4 items-center">
-            <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full">
+            <div className="bg-gray-800/90 backdrop-blur-sm p-6 rounded-lg max-w-md w-full border border-gray-700">
               <h3 className="text-xl font-bold mb-2">🎨 Farbverteilung</h3>
               <p className="text-sm text-gray-300 mb-4">Achten Sie auf die Farben der Ballons. Sie müssen die Verteilung der Grautöne zeichnen.</p>
               <button
@@ -240,7 +250,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full">
+            <div className="bg-gray-800/90 backdrop-blur-sm p-6 rounded-lg max-w-md w-full border border-gray-700">
               <h3 className="text-xl font-bold mb-2">🔢 Zahlenverteilung</h3>
               <p className="text-sm text-gray-300 mb-4">Achten Sie auf die Zahlenwerte (0-20) der Ballons. Sie müssen die Verteilung der Zahlen nachbilden.</p>
               <button
@@ -255,8 +265,8 @@ export default function App() {
       )}
 
       {sessionId && (
-        <div className="w-full max-w-4xl mt-6">
-          <div className="mb-4 text-center">
+        <div className="w-full max-w-4xl mt-6 relative z-10">
+          <div className="mb-4 text-center bg-gray-900/70 backdrop-blur-sm rounded-lg p-3 border border-gray-700">
             <div className="text-2xl">Level: Welt {level.welt}, Stufe {level.stufe}</div>
             <div className="text-sm text-gray-400">Modus: {gameMode === "number" ? "Zahlenverteilung (0-20)" : "Farbverteilung (Grautöne)"}</div>
           </div>
