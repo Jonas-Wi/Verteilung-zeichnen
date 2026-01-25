@@ -48,18 +48,82 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 				this.gameMode = null;
 			}
 			preload() {
-				// Lade Hintergrundbild
-				this.load.image('forestBg', '/leiterspiel/minispiel/DüstererWald.jpg.webp');
+				// Bevorzugt ein JPG-Hintergrundbild laden; WebP als Fallback
+				this.load.image('forestBgJpg', '/leiterspiel/minispiel/forest-bg.jpg');
+				this.load.image('forestBgWebp', '/leiterspiel/minispiel/DüstererWald.jpg.webp');
 			}
 			create() {
-				// Hintergrundbild hinzufügen und skalieren
-				const bg = this.add.image(WIDTH / 2, HEIGHT / 2, 'forestBg');
-				bg.setDisplaySize(WIDTH, HEIGHT);
-				bg.setDepth(-1);
+				// Hintergrund: JPG bevorzugt, sonst WebP; wenn beides fehlt, dunkler Fallback
+				let bg = null;
+				if (this.textures && this.textures.exists('forestBgJpg')) {
+					bg = this.add.image(WIDTH / 2, HEIGHT / 2, 'forestBgJpg');
+				} else if (this.textures && this.textures.exists('forestBgWebp')) {
+					bg = this.add.image(WIDTH / 2, HEIGHT / 2, 'forestBgWebp');
+				}
+				if (bg) {
+					bg.setDisplaySize(WIDTH, HEIGHT);
+					bg.setDepth(-1);
+					// leichte Abdunklung für konsistenten dunklen Look
+					bg.setTint(0x0b2e1b);
+				} else {
+					const base = this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x0a0f14, 1);
+					base.setDepth(-1);
+				}
+
+				// Waldtextur: Bäume über den ganzen Bildschirm in drei Tiefenebenen
+				const trees = this.add.graphics();
+				trees.setDepth(-0.5);
+				// Ferne Ebene (oben bis Mitte) – kleiner, transparenter
+				for (let yBase = 140; yBase <= HEIGHT - 220; yBase += 60) {
+					for (let i = 0; i < 10; i++) {
+						const x = 40 + i * ((WIDTH - 80) / 9) + Phaser.Math.Between(-14, 14);
+						const h = Phaser.Math.Between(22, 34);
+						const w = Math.max(14, Math.floor(h * 0.58));
+						const trunkW = Math.max(3, Math.floor(w * 0.16));
+						const trunkH = Math.max(6, Math.floor(h * 0.30));
+						const y = yBase + Phaser.Math.Between(-6, 6);
+						trees.fillStyle(0x1c3a25, 0.40);
+						trees.fillTriangle(x, y - h, x - w / 2, y - trunkH, x + w / 2, y - trunkH);
+						trees.fillStyle(0x4a3a2a, 0.55);
+						trees.fillRect(x - trunkW / 2, y - trunkH, trunkW, trunkH);
+					}
+				}
+				// Mittlere Ebene (Mitte)
+				for (let yBase = HEIGHT - 260; yBase <= HEIGHT - 140; yBase += 50) {
+					for (let i = 0; i < 11; i++) {
+						const x = 40 + i * ((WIDTH - 80) / 10) + Phaser.Math.Between(-12, 12);
+						const h = Phaser.Math.Between(26, 40);
+						const w = Math.max(16, Math.floor(h * 0.6));
+						const trunkW = Math.max(3, Math.floor(w * 0.18));
+						const trunkH = Math.max(6, Math.floor(h * 0.32));
+						const y = yBase + Phaser.Math.Between(-6, 6);
+						trees.fillStyle(0x224c30, 0.68);
+						trees.fillTriangle(x, y - h, x - w / 2, y - trunkH, x + w / 2, y - trunkH);
+						trees.fillStyle(0x5a4635, 0.78);
+						trees.fillRect(x - trunkW / 2, y - trunkH, trunkW, trunkH);
+					}
+				}
+				// Nahe Ebene (unten) – größer, sichtbarer
+				for (let yBase = HEIGHT - 120; yBase <= HEIGHT - 80; yBase += 40) {
+					for (let i = 0; i < 12; i++) {
+						const x = 40 + i * ((WIDTH - 80) / 11) + Phaser.Math.Between(-10, 10);
+						const h = Phaser.Math.Between(32, 52);
+						const w = Math.max(18, Math.floor(h * 0.62));
+						const trunkW = Math.max(4, Math.floor(w * 0.20));
+						const trunkH = Math.max(8, Math.floor(h * 0.34));
+						const y = yBase + Phaser.Math.Between(-6, 6);
+						trees.fillStyle(0x255636, 0.78);
+						trees.fillTriangle(x, y - h, x - w / 2, y - trunkH, x + w / 2, y - trunkH);
+						trees.fillStyle(0x6a513d, 0.85);
+						trees.fillRect(x - trunkW / 2, y - trunkH, trunkW, trunkH);
+					}
+				}
 				
-				// Dunkles Overlay für bessere Lesbarkeit
-				const overlay = this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x000000, 0.3);
+				// Sehr dunkles Overlay, damit Bälle/Objekte klar sichtbar bleiben
+				const overlay = this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x000000, 0.82);
 				overlay.setDepth(0);
+
+				// Rahmen entfernt: Der grüne Rand wird als CSS-Border am Container gesetzt
 				
 				this.gameMode = gameModeRef.current;
 				this.physics.world.setBounds(0, 0, WIDTH, HEIGHT);
@@ -87,6 +151,11 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 				this.physics.add.existing(bottomWall, true);
 				const bottomGroup = this.physics.add.staticGroup();
 				bottomGroup.add(bottomWall);
+				// Wände unsichtbar halten (nur Physik, keine optische Neon-Kante)
+				topWall.visible = false;
+				leftWall.visible = false;
+				rightWall.visible = false;
+				bottomWall.visible = false;
 				this.blocksGroup = this.physics.add.staticGroup();
 				this.physics.add.collider(this.ball, this.paddle, this.handlePaddleBounce, null, this);
 				this.distribution = distributionRef.current || [];
@@ -250,7 +319,7 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 				width: WIDTH,
 				height: HEIGHT,
 				parent: gameRef.current,
-				backgroundColor: '#f0f0f0',
+				backgroundColor: '#0a0f14',
 				physics: { default: 'arcade', arcade: { gravity: { y: 300 }, debug: false } },
 				scene: [MainScene],
 			};
@@ -267,6 +336,6 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 	}, [sessionId, level, onGameEnd, showNumbers, gameMode]);
 
 	return (
-		<div ref={gameRef} className="mx-auto" style={{ width: 800, height: 600 }} />
+		<div ref={gameRef} className="mx-auto" style={{ width: 800, height: 600, border: '12px solid #0b2e1b', boxSizing: 'content-box' }} />
 	);
 }
