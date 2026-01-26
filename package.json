@@ -2,6 +2,6 @@
   "name": "verteilung-zeichnen",
   "version": "1.0.0",
   "scripts": {
-    "start": "npx serve ."
+    "start": "npx serve frontend"
   }
 }
