@@ -1,0 +1,2166 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Goldpfad – Die Verteilungsprüfung</title>
+  <style>
+    @keyframes popIn { 0%{transform:scale(.85);opacity:0} 60%{transform:scale(1.05);opacity:1} 100%{transform:scale(1)} }
+    @keyframes floaty { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+    @keyframes sweep { 0%,100%{opacity:.45} 50%{opacity:.9} }
+
+   body{
+      margin:0;
+      font-family:system-ui,Segoe UI,Roboto,Arial;
+      color:#e5e7eb;
+      background-color:#0b1220;
+      overflow-x:hidden;
+
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+      min-height:100vh;
+}
+
+/* 🌲 Hintergrund für Wald-Map + Welt-Auswahl */
+body.bg-forest{
+  background-image: url("./minispiel/DüstererWald.jpg.webp");
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+}
+
+/* 🔥 Hintergrund für Lava-Map */
+body.bg-lava{
+  background-image: url("./minispiel/Lava.png");
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+}
+
+
+    .wrap{
+      max-width:900px;
+      width:100%;
+      margin:24px 16px;
+      padding:16px 16px 24px;
+      border-radius:20px;
+      background:rgba(15,23,42,0.82);
+      box-shadow:0 24px 60px rgba(0,0,0,.55);
+      border:1px solid rgba(148,163,184,.35);
+      backdrop-filter: blur(10px);
+    }
+
+    .top{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-bottom:12px;
+    }
+
+    h1{
+      margin:0;
+      font-size:24px;
+      line-height:1.15;
+      color:#ffffff;
+      letter-spacing:.2px;
+      text-shadow:0 10px 24px rgba(0,0,0,.35);
+    }
+    .sub{
+      color:rgba(255,255,255,.88);
+      font-size:15px;
+      margin-top:8px;
+      text-shadow:0 10px 24px rgba(0,0,0,.25);
+    }
+
+    .btn{
+      border:1px solid rgba(148,163,184,.25);
+      background:rgba(232, 235, 242, 0.55);
+      color:#535f75;
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+    }
+    .btn:hover{background:rgba(217, 221, 231, 0.8);}
+    .btnPrimary{border-color:rgba(34,211,238,.35);background:rgba(34,211,238,.14);color:#2b3a53;}
+    .btnDanger{border-color:rgba(255,95,122,.35);background:rgba(255,95,122,.12);color:#2b3a53;}
+    .btnGhost{background:rgba(232,235,242,.35);}
+    .btn:focus-visible{outline:3px solid rgba(34,211,238,.45); outline-offset:2px;}
+
+    .board{
+      position:relative;
+      height:440px;
+      border-radius:18px;
+      background:radial-gradient(circle at 20% 0%,rgba(148,163,255,.26),transparent 55%),
+                 radial-gradient(circle at 80% 100%,rgba(56,189,248,.18),transparent 55%),
+                 rgba(15,23,42,0.90);
+      overflow:hidden;
+      border:1px solid rgba(148,163,184,.45);
+    }
+    svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+
+    /* HUD oben rechts im Spielfeld */
+    .boardHud{
+      position:absolute;
+      top:8px;
+      right:8px;
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:4px;
+      z-index:5;
+    }
+    #progress{
+      color:#f9fafb;
+      font-size:13px;
+      font-weight:700;
+      text-shadow:0 8px 16px rgba(0,0,0,.45);
+    }
+
+    .starToast{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      font-size:13px;
+      padding:4px 8px;
+      border-radius:999px;
+      background:rgba(250,250,250,.96);
+      color:#111827;
+      border:1px solid rgba(148,163,184,.45);
+      box-shadow:0 10px 18px rgba(0,0,0,.18);
+      white-space:nowrap;
+    }
+
+    .hudRankingBtn{
+      margin-top:4px;
+      font-size:12px;
+      padding:6px 10px;
+      background:rgba(250,204,21,.12);
+      border-color:rgba(250,204,21,.85);
+      color:#fefce8;
+      box-shadow:0 0 14px rgba(250,204,21,.55);
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+    }
+
+    /* Level-Karten */
+    .node{
+      position:absolute;z-index:2;transform:translate(-50%,-50%);
+      width:178px;border-radius:16px;border:1px solid rgba(148,163,184,.35);
+      background:rgba(255,255,255,0.96);
+      padding:10px 12px;text-align:left;cursor:pointer;
+      overflow: visible;
+      transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, filter .16s ease;
+      color:#111827;
+    }
+    .node:hover{transform:translate(-50%,-50%) scale(1.02);}
+    .node:focus-visible{outline:3px solid rgba(34,211,238,.45); outline-offset:3px;}
+    .row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+    .title{font-weight:800;font-size:14px;color:#0f172a;}
+    .status{font-size:12px;color:#6b7280;margin-top:3px;}
+    .hint{font-size:12px;color:#4b5563;margin-top:6px;display:none;}
+    .node.locked:hover .hint{display:block;}
+
+    .pillWrap{position:relative;width:36px;height:30px;flex:0 0 auto;}
+    .pill{
+      width:36px;height:30px;border-radius:12px;display:grid;place-items:center;
+      border:1px solid rgba(148,163,184,.35);
+      background:rgba(241,245,249,0.95);
+      font-weight:900;
+      font-size:12px;
+      letter-spacing:.2px;
+      user-select:none;
+      color:#4b5563;
+    }
+    .badgeStars{color:#facc15;font-size:13px;}
+
+    .gate{
+      position:absolute;
+      left:50%;
+      bottom:100%;
+      transform: translateX(-50%);
+      margin-bottom:4px;
+      width:46px;
+      height:auto;
+      display:block;
+      pointer-events:none;
+      user-select:none;
+      filter: drop-shadow(0 8px 10px rgba(0,0,0,.25));
+    }
+
+    .gate-open{
+      position:absolute;
+      left:50%;
+      bottom:100%;
+      transform: translateX(-50%);
+      margin-bottom:4px;
+      width:46px;
+      height:46px;
+      background: linear-gradient(180deg, rgba(120,255,210,.95), rgba(34,211,238,.45));
+      filter: drop-shadow(0 8px 10px rgba(0,0,0,.25));
+      -webkit-mask-image: url("./minispiel/Torfinale.png");
+      mask-image: url("./minispiel/Torfinale.png");
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+      -webkit-mask-position: center;
+      mask-position: center;
+      -webkit-mask-size: contain;
+      mask-size: contain;
+      pointer-events:none;
+      user-select:none;
+    }
+
+    .treasure{
+      position:absolute;
+      left:50%;
+      bottom:100%;
+      transform: translateX(-50%);
+      margin-bottom:4px;
+      width:46px;
+      height:auto;
+      pointer-events:none;
+      user-select:none;
+      filter:
+        drop-shadow(0 10px 14px rgba(0,0,0,.45))
+        drop-shadow(0 0 18px rgba(255,215,100,.45));
+      animation: treasurePop 520ms cubic-bezier(.2,.9,.2,1) 1;
+    }
+    @keyframes treasurePop{
+      0%   { opacity:0; transform: translateX(-50%) scale(.55); }
+      55%  { opacity:1; transform: translateX(-50%) scale(1.12); }
+      78%  { opacity:1; transform: translateX(-50%) scale(.98); }
+      100% { opacity:1; transform: translateX(-50%) scale(1); }
+    }
+
+    .locked{opacity:.85;}
+    .available{border-color:rgba(34,211,238,.55);box-shadow:0 0 18px rgba(34,211,238,.16);}
+    .completed{border-color:rgba(52,211,153,.55);box-shadow:0 0 18px rgba(52,211,153,.16);}
+
+    /* ✅ ULTIMATE LEVEL (L5) GLOW */
+    .ultimateNode{
+      border-color: rgba(250,204,21,.78) !important;
+      box-shadow:
+        0 0 0 1px rgba(250,204,21,.22),
+        0 0 26px rgba(250,204,21,.22),
+        0 0 70px rgba(250,204,21,.14);
+      background: linear-gradient(180deg, rgba(255,255,255,.985), rgba(248,250,252,.96));
+    }
+    .ultimateNode::before{
+      content:"";
+      position:absolute;
+      inset:-1px;
+      border-radius:16px;
+      pointer-events:none;
+      background: linear-gradient(
+        90deg,
+        rgba(250,204,21,.0),
+        rgba(250,204,21,.22),
+        rgba(255,255,255,.12),
+        rgba(250,204,21,.22),
+        rgba(250,204,21,.0)
+      );
+      opacity:.65;
+      mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+      -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+      padding:1px;
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      animation: sweep 2.2s ease-in-out infinite;
+    }
+
+    .ultimateNode.available{
+      box-shadow:
+        0 0 0 1px rgba(250,204,21,.28),
+        0 0 34px rgba(250,204,21,.35),
+        0 0 90px rgba(250,204,21,.22);
+      filter: saturate(1.03);
+    }
+    .ultimateNode.completed{
+      box-shadow:
+        0 0 0 1px rgba(250,204,21,.32),
+        0 0 42px rgba(250,204,21,.45),
+        0 0 120px rgba(250,204,21,.28);
+    }
+
+    .bonusNode{
+      border-color:rgba(255,215,100,.75) !important;
+      box-shadow:
+        0 0 0 1px rgba(255,215,100,.18),
+        0 0 28px rgba(255,215,100,.24),
+        0 0 70px rgba(168,85,247,.20);
+      background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.96));
+    }
+    .bonusNode::before{
+      content:"";
+      position:absolute;
+      inset:-1px;
+      border-radius:16px;
+      pointer-events:none;
+      background: linear-gradient(90deg, rgba(255,215,100,.0), rgba(255,215,100,.25), rgba(168,85,247,.22), rgba(255,215,100,.0));
+      opacity:.65;
+      mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+      -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+      padding:1px;
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      animation: sweep 2.4s ease-in-out infinite;
+    }
+
+    .warrior{
+      position:absolute;
+      z-index:3;
+      pointer-events:none;
+      width:56px;
+      height:56px;
+      left:0;
+      top:0;
+      transform: translate(-50%,-50%) scale(1);
+      animation: idleFloat 2.8s ease-in-out infinite;
+      filter: drop-shadow(0 10px 12px rgba(0,0,0,.35));
+      will-change: transform, left, top;
+    }
+    .warrior img{width:100%;height:100%;object-fit:contain;display:block;}
+    @keyframes idleFloat{
+      0%,100% { transform: translate(-50%,-50%) translateY(0) scale(1); }
+      50%     { transform: translate(-50%,-50%) translateY(-3px) scale(1); }
+    }
+
+    .popRing{
+      position:absolute;
+      left:0; top:0;
+      width:10px; height:10px;
+      border-radius:999px;
+      border:2px solid rgba(34,211,238,.55);
+      transform: translate(-50%,-50%) scale(0.6);
+      opacity:0;
+      pointer-events:none;
+      z-index:2;
+    }
+    .popRing.show{ animation: ring 520ms ease-out 1; }
+    @keyframes ring{
+      0%   { opacity:0; transform: translate(-50%,-50%) scale(.55); }
+      25%  { opacity:1; }
+      100% { opacity:0; transform: translate(-50%,-50%) scale(3.2); }
+    }
+
+    .overlay{
+      position:fixed; inset:0;
+      display:none;
+      place-items:center;
+      background:rgba(10,14,20,.55);
+      padding:16px;
+      z-index:100;
+      backdrop-filter: blur(6px);
+    }
+    .overlay.open{display:grid;}
+    .modal{
+      width:min(560px,100%);
+      border-radius:16px;
+      border:1px solid rgba(148,163,184,.22);
+      background:rgba(236, 237, 239, 0.96);
+      padding:14px;
+      color:#1f2a44;
+      box-shadow:0 30px 80px rgba(0,0,0,.35);
+    }
+    .modal h2{margin:0;font-size:16px;}
+    .modal p{margin:8px 0 0;color:#44506a;font-size:13px;line-height:1.4;}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;justify-content:flex-end;}
+    .k{display:inline-block;padding:2px 8px;border-radius:999px;background:rgba(34,211,238,.12);border:1px solid rgba(34,211,238,.22);color:#1f2a44;font-size:12px}
+
+    .finalOverlay{
+      position:fixed; inset:0;
+      display:none;
+      z-index:30;
+      background: radial-gradient(1200px 600px at 50% 35%, rgba(10,14,20,.65), rgba(10,14,20,.88));
+      backdrop-filter: blur(6px);
+      overflow:hidden;
+      align-items:center;
+      justify-content:center;
+    }
+    .finalOverlay.show{display:flex;}
+
+    .finalCard{
+      width:min(760px, calc(100% - 32px));
+      border-radius:18px;
+      border:1px solid rgba(148,163,184,.22);
+      background:rgba(236, 237, 239, 0.95);
+      color:#15203a;
+      padding:16px 16px 14px;
+      box-shadow: 0 30px 80px rgba(0,0,0,.35);
+    }
+    .finalTitle{ margin:0; font-size:18px; font-weight:900; letter-spacing:.2px; }
+    .finalText{ margin:10px 0 0; font-size:14px; line-height:1.45; color:#2f3a55; }
+    .finalHint{
+      margin:10px 0 0;
+      font-size:13px;
+      line-height:1.45;
+      color:#2c3a57;
+      background:rgba(255,215,100,.14);
+      border:1px solid rgba(255,215,100,.28);
+      border-radius:12px;
+      padding:10px 12px;
+    }
+    .finalMeta{ margin-top:10px; display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; align-items:center; }
+
+    .epilogOverlay{
+      position:fixed; inset:0;
+      display:none;
+      z-index:50;
+      overflow:hidden;
+      background:
+        radial-gradient(900px 520px at 50% 30%, rgba(255,215,100,.16), rgba(0,0,0,0) 60%),
+        radial-gradient(1200px 800px at 50% 70%, rgba(168,85,247,.14), rgba(0,0,0,0) 55%),
+        radial-gradient(1200px 800px at 50% 50%, rgba(10,14,20,.60), rgba(10,14,20,.92));
+      backdrop-filter: blur(6px);
+      align-items:center;
+      justify-content:center;
+    }
+    .epilogOverlay.show{display:flex;}
+
+    #rankingOverlay .modal{
+      max-width:420px;
+      border-color:rgba(250,204,21,.75);
+      box-shadow:
+        0 30px 80px rgba(0,0,0,.55),
+        0 0 0 1px rgba(250,204,21,.35);
+      animation: popIn .4s ease;
+    }
+
+    /* ------------------ ✅ COIN RAIN OVERLAY (LÄNGER) ------------------ */
+    .coinOverlay{
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      z-index:260;
+      overflow:hidden;
+    }
+    .coin{
+      position:absolute;
+      top:-40px;
+      width:18px;
+      height:18px;
+      border-radius:999px;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(255,255,255,.55), rgba(255,255,255,0) 50%),
+        radial-gradient(circle at 70% 70%, rgba(0,0,0,.22), rgba(0,0,0,0) 55%),
+        linear-gradient(180deg, rgba(255,214,122,1), rgba(255,170,70,.9));
+      box-shadow:
+        inset 0 0 0 2px rgba(120,70,0,.22),
+        0 10px 18px rgba(0,0,0,.35),
+        0 0 18px rgba(255,215,100,.18);
+      opacity:0;
+      transform: translateY(-10px);
+      animation: coinFall var(--dur, 4200ms) linear forwards;
+      will-change: transform, opacity;
+    }
+    @keyframes coinFall{
+      0%   { opacity:0; transform: translateY(-50px) rotate(0deg); }
+      10%  { opacity:1; }
+      100% { opacity:0; transform: translateY(140vh) rotate(720deg); }
+    }
+
+    /* ✅ Intro Overlay Input: sauber aligned */
+    .introModal{
+      max-width:460px;
+      text-align:center;
+      animation: popIn .45s ease;
+      display:flex;
+      flex-direction:column;
+      align-items:stretch;
+      gap:10px;
+      box-sizing:border-box;
+    }
+    .introModal input{
+      box-sizing:border-box;
+      width:100%;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid #cbd5e1;
+      font-size:14px;
+      line-height:1.2;
+      margin:0;
+      display:block;
+    }
+    .introModal .actions{
+      justify-content:center !important;
+      margin-top:0 !important;
+    }
+
+    /* ===================== ✅ WELT-AUSWAHL (NEU) ===================== */
+    .view{display:none;}
+    .view.active{display:block;}
+
+    .worldWrap{
+      max-width:980px;
+      width:100%;
+      margin:24px 16px;
+      padding:16px 16px 22px;
+      border-radius:22px;
+      background:rgba(15,23,42,0.78);
+      box-shadow:0 26px 70px rgba(0,0,0,.58);
+      border:1px solid rgba(148,163,184,.35);
+      backdrop-filter: blur(12px);
+    }
+
+    .worldHeader{
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      margin-bottom:12px;
+    }
+    .worldHeader h2{
+      margin:0;
+      font-size:28px;
+      letter-spacing:.2px;
+      color:#f8fafc;
+      text-shadow:0 14px 28px rgba(0,0,0,.35);
+    }
+
+    .worldGrid{
+      position:relative;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:18px;
+      align-items:stretch;
+      margin-top:12px;
+    }
+
+    .worldPath{
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:280px;
+      height:160px;
+      transform:translate(-50%,-50%);
+      pointer-events:none;
+      opacity:.9;
+      filter: drop-shadow(0 10px 18px rgba(0,0,0,.35));
+    }
+    .pathDot{
+      position:absolute;
+      width:14px;
+      height:14px;
+      border-radius:999px;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.85), rgba(255,255,255,0) 55%),
+                  linear-gradient(180deg, rgba(120,255,210,.95), rgba(34,211,238,.55));
+      box-shadow:0 0 18px rgba(34,211,238,.45);
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%);
+      animation: floaty 2.4s ease-in-out infinite;
+    }
+
+    .worldCard{
+      position:relative;
+      border-radius:20px;
+      border:1px solid rgba(148,163,184,.35);
+      background:rgba(2,6,23,.42);
+      overflow:hidden;
+      min-height:320px;
+      display:flex;
+      flex-direction:column;
+      box-shadow:0 20px 55px rgba(0,0,0,.45);
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, filter .18s ease;
+    }
+    .worldCard:hover{ transform: translateY(-2px); box-shadow:0 26px 70px rgba(0,0,0,.55); }
+    .worldCard:focus-within{ outline:3px solid rgba(34,211,238,.40); outline-offset:3px; }
+
+    .worldArt{
+      height:210px;
+      background-size:cover;
+      background-position:center;
+      position:relative;
+    }
+    .worldArt::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background: linear-gradient(180deg, rgba(2,6,23,0) 0%, rgba(2,6,23,.62) 75%, rgba(2,6,23,.88) 100%);
+    }
+
+    .worldBody{
+      padding:14px 14px 16px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      flex:1;
+    }
+
+    .worldTopRow{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:flex-start;
+    }
+
+    .worldTitle{
+      margin:0;
+      font-size:22px;
+      font-weight:900;
+      letter-spacing:.2px;
+      color:#f8fafc;
+    }
+
+    .worldTag{
+      align-self:flex-start;
+      font-size:12px;
+      font-weight:900;
+      padding:6px 10px;
+      border-radius:999px;
+      background: rgba(148,163,184,.18);
+      border:1px solid rgba(148,163,184,.26);
+      color:#f1f5f9;
+      text-shadow:0 10px 24px rgba(0,0,0,.25);
+      white-space:nowrap;
+    }
+    .worldTag.current{
+      background: rgba(34,211,238,.14);
+      border-color: rgba(34,211,238,.35);
+      box-shadow: 0 0 18px rgba(34,211,238,.18);
+    }
+
+    .worldDesc{
+      margin:0;
+      font-size:13px;
+      color: rgba(226,232,240,.92);
+      line-height:1.45;
+      max-width:52ch;
+    }
+
+    .worldFooter{
+      margin-top:auto;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+    }
+
+    .worldLockHint{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      font-size:12px;
+      color: rgba(226,232,240,.9);
+      padding:8px 10px;
+      border-radius:999px;
+      background: rgba(15,23,42,.55);
+      border:1px solid rgba(148,163,184,.22);
+    }
+
+    .worldAction{
+      border-radius:14px;
+      padding:10px 14px;
+      font-weight:900;
+      letter-spacing:.2px;
+    }
+
+    .worldAction.primary{
+      background: linear-gradient(180deg, rgba(120,255,210,.95), rgba(34,211,238,.45));
+      border:1px solid rgba(34,211,238,.45);
+      color:#0b1220;
+      box-shadow:0 0 0 1px rgba(34,211,238,.18), 0 16px 30px rgba(0,0,0,.35);
+    }
+    .worldAction.primary:hover{ filter:saturate(1.05) brightness(1.02); }
+
+    .worldAction.ghost{
+      background: rgba(226,232,240,.12);
+      border:1px solid rgba(148,163,184,.25);
+      color: rgba(241,245,249,.95);
+    }
+
+    .worldCard.lockedCard{
+      filter: saturate(.85) brightness(.92);
+      opacity:.92;
+    }
+    /* ✨ Hervorhebung für die freigeschaltete Lava-Map */
+.highlightNextCard{
+  box-shadow:
+    0 0 32px rgba(250,204,21,.65),
+    0 26px 70px rgba(0,0,0,.65);
+  border-color: rgba(250,204,21,.85) !important;
+}
+
+@keyframes pulseNext {
+  0%,100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(250,204,21,0);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 24px rgba(250,204,21,.75);
+  }
+}
+/* Allgemeiner Glow für Buttons / Karten */
+.glowPulse{
+  animation: pulseNext 1.2s ease-in-out infinite;
+}
+
+
+/* ✨ „Weiter“-Button pulsiert, damit man draufklickt */
+.highlightNextButton{
+  animation: pulseNext 1.2s ease-in-out infinite;
+}
+
+    .worldCard.lockedCard .worldArt{
+      filter: grayscale(.12) contrast(.98);
+    }
+    .worldLockIcon{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%);
+      width:68px;
+      height:68px;
+      display:grid;
+      place-items:center;
+      border-radius:18px;
+      background: rgba(2,6,23,.55);
+      border:1px solid rgba(250,204,21,.35);
+      box-shadow:0 0 0 1px rgba(250,204,21,.12), 0 22px 40px rgba(0,0,0,.45);
+      color:#fde68a;
+      font-size:30px;
+      z-index:3;
+      backdrop-filter: blur(8px);
+    }
+
+    .worldUnlockToast{
+      position:fixed;
+      left:50%;
+      bottom:18px;
+      transform:translateX(-50%);
+      z-index:999;
+      display:none;
+      padding:10px 12px;
+      border-radius:999px;
+      background: rgba(250,250,250,.96);
+      color:#0f172a;
+      border:1px solid rgba(34,211,238,.35);
+      box-shadow:0 22px 50px rgba(0,0,0,.35);
+      font-weight:900;
+      gap:8px;
+      align-items:center;
+      }
+    .worldUnlockToast.show{display:flex;}
+
+
+    @media (max-width: 860px){
+      .worldGrid{ grid-template-columns: 1fr; }
+      .worldPath{ display:none; }
+      .worldCard{ min-height:300px; }
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      .warrior, .popRing.show, .treasure, .coin, .ultimateNode::before, .bonusNode::before, .pathDot{animation:none !important;}
+      .node, .node:hover, .worldCard, .worldCard:hover{transition:none !important;}
+      .node:hover{transform:translate(-50%,-50%) !important;}
+    }
+  </style>
+</head>
+
+<body>
+  <div class="coinOverlay" id="coinOverlay" aria-hidden="true"></div>
+
+  <!-- ✅ Welt-Unlock Toast -->
+  <div class="worldUnlockToast" id="worldUnlockToast" role="status" aria-live="polite">
+    ✨ Neue Welt freigeschaltet: <span style="color:#0ea5e9;">Neue Herausforderung</span>
+  </div>
+
+  <!-- ===================== ✅ VIEW 1: WELT AUSWAHL (NEU) ===================== -->
+  <section class="view active" id="worldSelectView" aria-label="Welt auswählen">
+    <div class="worldWrap">
+      <div class="worldHeader">
+        <h2>Welt auswählen</h2>
+      </div>
+
+      <div class="worldGrid">
+        <!-- Path (nur Deko) -->
+        <svg class="worldPath" viewBox="0 0 100 60" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M 8 45 C 30 10, 70 10, 92 45" fill="none" stroke="rgba(34,211,238,.45)" stroke-width="2.4" stroke-linecap="round"/>
+          <path d="M 8 45 C 30 10, 70 10, 92 45" fill="none" stroke="rgba(250,204,21,.18)" stroke-width="5.2" stroke-linecap="round" opacity=".55"/>
+        </svg>
+        <div class="pathDot" aria-hidden="true"></div>
+
+        <!-- Welt 1 -->
+        <article class="worldCard" id="world1Card">
+          <div class="worldArt" style="background-image:url('./minispiel/DüstererWald.jpg.webp');"></div>
+          <div class="worldBody">
+            <div class="worldTopRow">
+              <h3 class="worldTitle">Wald-Map</h3>
+              <div class="worldTag current">Aktuell</div>
+            </div>
+            <p class="worldDesc">
+              Meistere die Prüfungen der Verteilung. Sammle Sterne, öffne Tore und erobere den Schatz.
+            </p>
+
+            <div class="worldFooter">
+              <button class="btn worldAction primary" id="enterWorld1Btn" type="button">Eingang</button>
+              <div class="worldLockHint" id="world1Meta">⭐ Fortschritt wird geladen …</div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Welt 2 -->
+        <article class="worldCard lockedCard" id="world2Card">
+          <div class="worldArt" style="background-image:url('./minispiel/Lava.png');">
+  <div class="worldLockIcon" id="world2LockIcon" aria-hidden="true">🔒</div>
+</div>
+
+          <div class="worldBody">
+            <div class="worldTopRow">
+              <h3 class="worldTitle">Lava-Map</h3>
+              <div class="worldTag" id="world2Tag">Gesperrt</div>
+            </div>
+            <p class="worldDesc" id="world2Desc">
+              Eine gefährliche Region voller neuer Prüfungen. Freischalten, indem du den Schatz eroberst.
+            </p>
+
+            <div class="worldFooter">
+              <button class="btn worldAction ghost" id="enterWorld2Btn" type="button">Betreten</button>
+              <div class="worldLockHint" id="world2Hint">🔒 Freischalten: <b>Ultimate (L5)</b> schaffen</div>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap;">
+        <button class="btn" id="toWorldSelectResetBtn" type="button" title="Nur Spielstand resetten">Reset</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== ✅ VIEW 2: WELT 1 (DEIN SPIEL) ===================== -->
+  <section class="view" id="world1View" aria-label="Übungswelt">
+    <!-- Intro -->
+    <div id="introOverlay" class="overlay open" style="z-index:200;">
+      <div class="modal introModal">
+        <h2 style="font-size:26px;font-weight:900;margin:0;color:#0f172a;letter-spacing:.3px;">
+          Willkommen auf dem Goldpfad
+        </h2>
+        <p style="font-size:15px;line-height:1.45;margin:0;">
+          Jeder Krieger trägt einen Namen.<br>Wie sollen wir dich nennen?
+        </p>
+        <input id="playerNameInput" type="text" placeholder="Dein Name" autocomplete="nickname">
+<p id="nameError" style="margin:6px 0 0;font-size:12px;color:#b91c1c;min-height:1em;"></p>
+
+        <div class="actions">
+          <button class="btn btnPrimary" id="startGameBtn" type="button">Den Pfad betreten</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="top">
+        <div>
+          <h1>Goldpfad – Die Verteilungsprüfung</h1>
+          <div class="sub">Hilf dem Krieger, sich den Prüfungen der Verteilung zu stellen, um an das Gold zu gelangen.</div>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <button class="btn btnGhost" id="backToWorldSelectBtn" type="button">← Welten</button>
+          <button class="btn" id="resetBtn" type="button">Reset</button>
+        </div>
+      </div>
+
+      <div class="board" id="board">
+        <div class="boardHud">
+          <div id="progress"></div>
+          <div id="starToast" class="starToast" aria-live="polite"></div>
+          <button class="btn hudRankingBtn" id="rankingBtn" type="button">🏆 Rangliste</button>
+        </div>
+
+        <svg id="edges" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+        <div class="popRing" id="popRing" aria-hidden="true"></div>
+        <div class="warrior" id="warrior" aria-hidden="true">
+          <img src="./minispiel/Krieger.png" alt="">
+        </div>
+      </div>
+    </div>
+
+    <!-- Level-Modal -->
+    <div class="overlay" id="overlay" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+        <h2 id="mTitle">Level</h2>
+        <p id="mText"></p>
+        <div id="percentWrapper" style="margin-top:10px;">
+          <label for="percentInput"><b>Wie viel Prozent hast du geschafft?</b></label><br>
+          <input id="percentInput" type="number" min="0" max="100" value="100"
+                 style="margin-top:6px; padding:6px; width:90px;"> %
+        </div>
+        <p class="sub" id="mStatus" style="text-shadow:none;color:#4b5563;margin-top:8px;"></p>
+        <div class="actions">
+          <button class="btn btnGhost" id="mCancel" type="button">Abbrechen</button>
+          <button class="btn btnDanger" id="mNo" type="button">✗ Nicht geschafft</button>
+          <button class="btn btnPrimary" id="mYes" type="button">✓ Geschafft</button>
+        </div>
+        <p class="sub" style="margin-top:10px;color:#3b4761;text-shadow:none;">
+          Tipp: <span class="k">Esc</span> schließt • <span class="k">Enter</span> = geschafft
+        </p>
+      </div>
+    </div>
+
+    <!-- Finale -->
+    <div class="finalOverlay" id="finalOverlay" aria-hidden="true">
+      <div class="finalCard" role="dialog" aria-modal="true" aria-labelledby="finalTitle">
+        <h3 class="finalTitle" id="finalTitle">Du hast den Schatz erobert!</h3>
+        <p class="finalText">
+          Doch erst mit drei Sternen in jedem Level gilt der Sieg als vollkommen.
+        </p>
+        <div class="finalHint">
+          <b>Tipp:</b> Schließe alle Level ab und erreiche in jedem Level mindestens 2 Sterne,
+          um eine Extra-Challenge (Bonuslevel) freizuschalten.
+        </div>
+        <div class="finalMeta">
+          <button class="btn" id="finalClose" type="button">Schließen</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Epilog -->
+    <div class="epilogOverlay" id="epilogOverlay" aria-hidden="true">
+      <div class="modal" style="max-width:820px;">
+        <h3>👑 Du bist der Meister der Verteilung</h3>
+        <p>Du hast nicht nur Gold erobert – du hast Ordnung in das Chaos gebracht. Jeder Schritt war eine Entscheidung.</p>
+        <p>(Epilog) Wissensdurstige gehen weiter. Meister kehren zurück – und verfeinern ihre Strategie.</p>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap;">
+          <div id="epilogSeal">✨ Siegel: „Meisterschaft der Verteilung“</div>
+          <button class="btn" id="epilogClose" type="button">Zur Karte</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rangliste -->
+    <div id="rankingOverlay" class="overlay">
+      <div class="modal">
+        <h2>🏆 Rangliste der Krieger</h2>
+        <div id="rankingSummary" style="margin-top:6px;font-size:13px;color:#374151;"></div>
+        <div id="rankingList" style="margin-top:10px;max-height:260px;overflow-y:auto;"></div>
+        <div class="actions">
+          <button class="btn btnPrimary" id="rankingClose" type="button">Schließen</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== ✅ VIEW 3: WELT 2 (PLACEHOLDER) ===================== -->
+  <section class="view" id="world2View" aria-label="Neue Herausforderung">
+    <div class="wrap" style="max-width:980px;">
+      <div class="top">
+        <div>
+          <h1>Neue Herausforderung</h1>
+          <div class="sub">Provisorisch: Hier kommt später eure zweite Map / zweite Welt rein.</div>
+        </div>
+        <button class="btn btnGhost" id="world2BackBtn" type="button">← Zur Welt-Auswahl</button>
+      </div>
+
+           <div class="board" style="
+        height:460px;
+        position: relative;
+      ">
+
+
+        <div style="position:absolute; inset:0; display:grid; place-items:center; padding:16px;">
+                    <div class="modal" style="max-width:640px; animation: popIn .45s ease;">
+            <h2 style="font-size:20px;">🔥 Coming Soon – Lava-Map</h2>
+            <p style="font-size:14px;">
+              Die Lava-Map ist bereits freigeschaltet, der Inhalt wird aber noch entwickelt.
+              Bald erwarten dich hier neue Aufgaben und Herausforderungen.
+            </p>
+
+            <div class="actions">
+              <button class="btn btnPrimary" id="world2BackBtn2" type="button">Zurück</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+<script>
+  /* ===================== ✅ SIMPLE VIEW ROUTER (NEU) ===================== */
+function showView(id){
+  // Sichtbare View setzen
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  const el = document.getElementById(id);
+  if (el) el.classList.add("active");
+
+  // Hintergrund-Klassen vorbereiten
+  const body = document.body;
+  body.classList.remove("bg-forest", "bg-lava");
+
+  if (id === "world1View") {
+    // Wir sind in der Wald-Welt
+    currentWorld = 1;
+    body.classList.add("bg-forest");
+  } else if (id === "world2View") {
+    // Wir sind in der Lava-Welt
+    currentWorld = 2;
+    body.classList.add("bg-lava");
+  } else if (id === "worldSelectView") {
+    // Weltauswahl übernimmt das Theme der zuletzt betretenen Welt
+    if (currentWorld === 2) {
+      body.classList.add("bg-lava");
+    } else {
+      body.classList.add("bg-forest");
+    }
+  } else {
+    // Fallback: Wald
+    body.classList.add("bg-forest");
+  }
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+
+
+  /* ===================== ✅ INTRO / NAME (wie vorher) ===================== */
+ let playerName = localStorage.getItem("goldpfad_player_name");
+const introOverlay = document.getElementById("introOverlay");
+const nameInput = document.getElementById("playerNameInput");
+const startBtn = document.getElementById("startGameBtn");
+const nameError = document.getElementById("nameError");
+
+// Wenn schon ein Name gesetzt ist, Intro direkt ausblenden
+if (playerName && playerName.trim() !== "") {
+  introOverlay.classList.remove("open");
+}
+
+// Hilfsfunktion: prüft, ob ein Name in der Rangliste schon existiert (case-insensitive)
+function isNameTaken(name) {
+  const ranking = loadRanking(); // nutzt deine bestehende Funktion unten im Code
+  const lower = name.toLowerCase();
+  return ranking.some(r => r.name && r.name.toLowerCase() === lower);
+}
+
+startBtn.addEventListener("click", () => {
+  const name = nameInput.value.trim();
+
+  // 1. Leer?
+  if (!name) {
+    if (nameError) nameError.textContent = "Bitte gib einen Benutzernamen ein.";
+    return;
+  }
+
+  // 2. Bereits vergeben?
+  if (isNameTaken(name)) {
+    if (nameError) {
+      nameError.textContent = "Dieser Benutzername ist schon vergeben. Bitte wähle einen anderen.";
+    }
+    return;
+  }
+
+  // 3. OK → speichern und Spiel starten
+  if (nameError) nameError.textContent = "";
+
+  playerName = name;
+  localStorage.setItem("goldpfad_player_name", playerName);
+  introOverlay.classList.remove("open");
+});
+
+// Enter-Taste löst Klick aus
+nameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") startBtn.click();
+});
+
+// Beim Tippen Fehler-Meldung zurücksetzen
+nameInput.addEventListener("input", () => {
+  if (nameError) nameError.textContent = "";
+});
+
+
+  /* ✅ 4 Levels + Ultimate + Bonus (linear) */
+  const LEVELS = [
+    { id:"L1", title:"Level 1",        desc:"Start. Danach wird Level 2 frei.",  requiresAll:[],       pos:{x:16,y:64} },
+    { id:"L2", title:"Level 2",        desc:"Weiter den Pfad entlang.",          requiresAll:["L1"],   pos:{x:34,y:34} },
+    { id:"L3", title:"Level 3",        desc:"Die Prüfung wird härter.",          requiresAll:["L2"],   pos:{x:54,y:66} },
+    { id:"L4", title:"Level 4",        desc:"Letzte Vorbereitung.",              requiresAll:["L3"],   pos:{x:72,y:38} },
+    { id:"L5", title:"Ultimate",       desc:"Finale Prüfung nach Level 4.",     requiresAll:["L4"],   pos:{x:84,y:58}, isUltimate:true },
+    { id:"L6", title:"Bonuslevel",     desc:"Extra-Prüfung nach dem Schatz.",   requiresAll:["L5"],   pos:{x:90,y:76}, isBonus:true },
+  ];
+
+  const EDGES_BASE = [
+    ["L1","L2"],
+    ["L2","L3"],
+    ["L3","L4"],
+    ["L4","L5"]
+  ];
+  const EDGE_BONUS = ["L5","L6"];
+
+  const KEY = "ls_goldpfad_state_epilog_bonus_final";
+  const read  = () => { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { return {}; } };
+  const write = (obj) => { try { localStorage.setItem(KEY, JSON.stringify(obj)); } catch {} };
+
+  let state = read();
+  if (!state.completed) state.completed = {};
+  if (!state.stars)     state.stars     = {};
+  if (!state.percents)  state.percents  = {};
+  if (!state.failed)    state.failed    = {};
+  if (!state.last)      state.last      = "L1";
+  if (typeof state.finalShown  !== "boolean") state.finalShown  = false;
+  if (typeof state.epilogShown !== "boolean") state.epilogShown = false;
+  if (typeof state.rankingAfterFinalShown !== "boolean") state.rankingAfterFinalShown = false;
+    if (typeof state.world2Entered !== "boolean") state.world2Entered = false;
+      let currentWorld = 1; // 1 = Wald, 2 = Lava
+
+
+
+  const board      = document.getElementById("board");
+  const edgesSvg   = document.getElementById("edges");
+  const progressEl = document.getElementById("progress");
+  const warrior    = document.getElementById("warrior");
+  const popRing    = document.getElementById("popRing");
+
+  const overlay        = document.getElementById("overlay");
+  const mTitle         = document.getElementById("mTitle");
+  const mText          = document.getElementById("mText");
+  const mStatus        = document.getElementById("mStatus");
+  const mCancel        = document.getElementById("mCancel");
+  const mNo            = document.getElementById("mNo");
+  const mYes           = document.getElementById("mYes");
+  const percentWrapper = document.getElementById("percentWrapper");
+
+  const finalOverlay = document.getElementById("finalOverlay");
+  const finalClose   = document.getElementById("finalClose");
+
+  const epilogOverlay = document.getElementById("epilogOverlay");
+  const epilogClose   = document.getElementById("epilogClose");
+
+  const coinOverlay = document.getElementById("coinOverlay");
+  const prefersReduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function coinRain(durationMs = 10000){
+    if (prefersReduced) return;
+    if (!coinOverlay) return;
+    coinOverlay.innerHTML = "";
+
+    const count = 92;
+    let maxLife = 0;
+
+    for (let i=0;i<count;i++){
+      const c = document.createElement("div");
+      c.className = "coin";
+
+      const left = Math.random() * 100;
+      const delayS = Math.random() * 1.1;
+      const durMs  = 3200 + Math.random()*3200;
+      const size   = 14 + Math.random()*10;
+
+      c.style.left = left + "%";
+      c.style.animationDelay = delayS + "s";
+      c.style.setProperty("--dur", durMs + "ms");
+      c.style.width = size + "px";
+      c.style.height = size + "px";
+
+      coinOverlay.appendChild(c);
+
+      const life = (delayS*1000) + durMs;
+      if (life > maxLife) maxLife = life;
+    }
+
+    const cleanup = Math.max(durationMs, Math.ceil(maxLife + 600));
+    clearTimeout(coinRain._t);
+    coinRain._t = setTimeout(() => { coinOverlay.innerHTML = ""; }, cleanup);
+  }
+
+  let activeLevel = null;
+
+  function nonBonusLevels(){ return LEVELS.filter(l => !l.isBonus); }
+  const MAX_STARS = nonBonusLevels().length * 3;
+
+  function isCompleted(id){ return !!state.completed[id]; }
+  function getStars(id){ return Number(state.stars[id] || 0); }
+  function hasFailed(id){ return !!(state.failed && state.failed[id]); }
+
+  function totalStars(){
+    return Object.values(state.stars).reduce((sum, s) => sum + s, 0);
+  }
+
+  function totalPercent(){
+    const percents = state.percents || {};
+    return nonBonusLevels().reduce((sum,l) => sum + Number(percents[l.id] || 0), 0);
+  }
+
+  // 🔧 Migration: alte "completed"-Flags ohne Sterne zurücksetzen
+  (function migrateCompletionWithoutStars(){
+    let changed = false;
+    for (const lvl of nonBonusLevels()){
+      if (state.completed[lvl.id] && getStars(lvl.id) < 1){
+        state.completed[lvl.id] = false;
+        changed = true;
+      }
+    }
+    if (changed) write(state);
+  })();
+
+  function updateStatusPanel(lastStars){
+    const panel = document.getElementById("starToast");
+    if (!panel) return;
+    const totalS = totalStars();
+    const baseText = `⭐ Gesamt: ${totalS}/${MAX_STARS}`;
+    if (typeof lastStars === "number") {
+      const runLabel = lastStars > 0 ? `Letzter Run: ${"⭐".repeat(lastStars)}` : "Letzter Run: ❌";
+      panel.textContent = `${runLabel} • ${baseText}`;
+    } else {
+      panel.textContent = baseText;
+    }
+  }
+
+  function loadRanking(){
+    return JSON.parse(localStorage.getItem("goldpfad_ranking") || "[]");
+  }
+  function saveRanking(list){
+    localStorage.setItem("goldpfad_ranking", JSON.stringify(list));
+  }
+
+function updateRanking(){
+  if (!playerName) return;
+  const stars      = totalStars();
+  const percentSum = totalPercent();
+
+  let ranking = loadRanking().map(r => {
+    if (r.stars == null && r.score != null) r.stars = r.score;
+    return r;
+  });
+
+  const now = Date.now();
+
+  const existing = ranking.find(r => r.name === playerName);
+  if (existing) {
+    // Sterne / Prozent wie bisher nur verbessern
+    existing.stars   = Math.max(existing.stars || 0, stars);
+    existing.percent = Math.max(existing.percent || 0, percentSum);
+    // Zeitstempel IMMER aktualisieren, wenn der Spieler gespielt hat
+    existing.updatedAt = now;
+    delete existing.score;
+  } else {
+    ranking.push({
+      name: playerName,
+      stars,
+      percent: percentSum,
+      updatedAt: now
+    });
+  }
+
+  // Sortierung:
+  // 1. Sterne absteigend
+  // 2. updatedAt absteigend (neuester ganz oben)
+  // 3. Prozent absteigend (nur falls du noch weiter tiefer sortieren willst)
+  ranking.sort((a,b) => {
+    const sa = a.stars || 0, sb = b.stars || 0;
+    if (sb !== sa) return sb - sa;
+
+    // 👉 Neueste Einträge zuerst
+    const ta = a.updatedAt || 0, tb = b.updatedAt || 0;
+    if (tb !== ta) return tb - ta;
+
+    const pa = a.percent || 0, pb = b.percent || 0;
+    return pb - pa;
+  });
+
+
+  saveRanking(ranking);
+}
+
+
+  function meetsAll(reqAll = []){
+    return (reqAll || []).every(id => isCompleted(id));
+  }
+
+  function statusOf(level){
+    if (isCompleted(level.id)) return "completed";
+    const okAll = meetsAll(level.requiresAll || []);
+    if (!okAll) return "locked";
+    return "available";
+  }
+
+  function missingReqsText(level){
+    const missingAll = (level.requiresAll || []).filter(r => !isCompleted(r));
+    if (!missingAll.length) return "";
+    return "Erreiche zuerst: " + missingAll.join(", ");
+  }
+
+  function isBonusUnlocked(){
+    const base = nonBonusLevels();
+    const allDone = base.every(l => isCompleted(l.id));
+    const allMin2 = base.every(l => getStars(l.id) >= 2);
+    return allDone && allMin2;
+  }
+
+  function renderProgress(){
+    const visible = isBonusUnlocked() ? LEVELS : nonBonusLevels();
+    const done    = visible.filter(l => isCompleted(l.id)).length;
+    progressEl.textContent = `Progress: ${done}/${visible.length}`;
+  }
+
+  function edgeControlPoint(a,b){
+    const cx = (a.x + b.x)/2;
+    const bump = (a.x < b.x ? 8 : -8);
+    const cy = (a.y + b.y)/2 + (a.y < b.y ? bump : -bump);
+    return {cx, cy};
+  }
+
+  function renderEdges(){
+    edgesSvg.innerHTML = "";
+    const findLevel = id => LEVELS.find(l => l.id === id);
+    const edges = [...EDGES_BASE];
+    if (isBonusUnlocked()) edges.push(EDGE_BONUS);
+
+    for (const [from,to] of edges){
+      const A = findLevel(from), B = findLevel(to);
+      const a = A.pos, b = B.pos;
+      const fromCompleted = statusOf(A) === "completed";
+      const toCompleted   = statusOf(B) === "completed";
+
+      const stroke = toCompleted
+        ? "rgba(52,211,153,.75)"
+        : fromCompleted
+          ? "rgba(34,211,238,.75)"
+          : "rgba(148,163,184,.35)";
+      const width = toCompleted ? 2.4 : fromCompleted ? 2.1 : 1.4;
+
+      const {cx, cy} = edgeControlPoint(a,b);
+
+      const p = document.createElementNS("http://www.w3.org/2000/svg","path");
+      p.setAttribute("d", `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`);
+      p.setAttribute("fill","none");
+      p.setAttribute("stroke", stroke);
+      p.setAttribute("stroke-width", width);
+      p.setAttribute("stroke-linecap","round");
+      edgesSvg.appendChild(p);
+    }
+  }
+
+  function setWarriorPixel(x,y){
+    warrior.style.left = x + "px";
+    warrior.style.top  = y + "px";
+  }
+  function setRingPixel(x,y){
+    popRing.style.left = x + "px";
+    popRing.style.top  = y + "px";
+    popRing.classList.remove("show");
+    void popRing.offsetWidth;
+    popRing.classList.add("show");
+  }
+
+  function percentToPx(percentX, percentY){
+    const rect = board.getBoundingClientRect();
+    return {
+      x: rect.width  * (percentX / 100),
+      y: rect.height * (percentY / 100)
+    };
+  }
+
+  function qBezier(p0, p1, p2, t){
+    const u = 1 - t;
+    return {
+      x: u*u*p0.x + 2*u*t*p1.x + t*t*p2.x,
+      y: u*u*p0.y + 2*u*t*p1.y + t*t*p2.y
+    };
+  }
+
+  function easeInOutCubic(t){
+    return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
+  }
+
+  let moveRAF = 0;
+
+  function getVisibleLinearIds(){
+    return (isBonusUnlocked() ? LEVELS : nonBonusLevels()).map(l => l.id);
+  }
+
+  function moveWarriorAlongEdge(fromId, toId, opts = {}){
+    const {duration = 880, onDone} = opts;
+    cancelAnimationFrame(moveRAF);
+
+    const A = LEVELS.find(l => l.id === fromId);
+    const B = LEVELS.find(l => l.id === toId);
+    if (!A || !B){
+      const tgt = B || A || LEVELS[0];
+      const p = percentToPx(tgt.pos.x, tgt.pos.y);
+      setWarriorPixel(p.x,p.y);
+      setRingPixel(p.x,p.y);
+      onDone && onDone();
+      return;
+    }
+
+    const p0 = percentToPx(A.pos.x, A.pos.y);
+    const p2 = percentToPx(B.pos.x, B.pos.y);
+
+    const {cx, cy} = edgeControlPoint(A.pos, B.pos);
+    const p1 = percentToPx(cx, cy);
+
+    const start = performance.now();
+    function tick(now){
+      const t = Math.min(1, (now - start) / duration);
+      const e = easeInOutCubic(t);
+      const p = qBezier(p0, p1, p2, e);
+      setWarriorPixel(p.x, p.y);
+      if (t < 1) moveRAF = requestAnimationFrame(tick);
+      else {
+        setRingPixel(p2.x,p2.y);
+        onDone && onDone();
+      }
+    }
+    moveRAF = requestAnimationFrame(tick);
+  }
+
+  function traversePath(fromId, toId, opts = {}){
+    const {durationPerHop = 820, onArrive} = opts;
+    const ids = getVisibleLinearIds();
+
+    const fromIndex = ids.indexOf(fromId);
+    const toIndex   = ids.indexOf(toId);
+
+    if (fromIndex === -1 || toIndex === -1 || fromId === toId){
+      const target = LEVELS.find(l => l.id === toId) || LEVELS[0];
+      const p = percentToPx(target.pos.x, target.pos.y);
+      setWarriorPixel(p.x,p.y);
+      setRingPixel(p.x,p.y);
+      onArrive && onArrive();
+      return;
+    }
+
+    const step = toIndex > fromIndex ? 1 : -1;
+    let i = fromIndex;
+
+    function nextHop(){
+      const nextI = i + step;
+      if (nextI === toIndex + step){
+        onArrive && onArrive();
+        return;
+      }
+      const a = ids[i];
+      const b = ids[nextI];
+      moveWarriorAlongEdge(a, b, {
+        duration: durationPerHop,
+        onDone: () => {
+          i = nextI;
+          nextHop();
+        }
+      });
+    }
+
+    nextHop();
+  }
+
+  function popWarriorTo(percentX, percentY){
+    const p = percentToPx(percentX, percentY);
+    setWarriorPixel(p.x, p.y);
+    setRingPixel(p.x, p.y);
+  }
+
+  function gateHtmlFor(level, st){
+    if (st !== "completed"){
+      return `<img class="gate" src="./minispiel/Tor.png" alt="" aria-hidden="true">`;
+    }
+    if (level.id === "L5"){
+      return `
+        <div class="gate-open" aria-hidden="true"></div>
+        <img class="treasure" src="./minispiel/Schatz.png" alt="" aria-hidden="true">
+      `;
+    }
+    return `<img class="gate" src="./minispiel/Torfinale.png" alt="" aria-hidden="true">`;
+  }
+
+  function renderNodes(){
+    board.querySelectorAll(".node").forEach(n => n.remove());
+
+    const bonusUnlocked = isBonusUnlocked();
+
+    for (const level of LEVELS){
+      if (level.isBonus && !bonusUnlocked) continue;
+
+      const st      = statusOf(level);
+      const stars   = getStars(level.id);
+      const failed  = hasFailed(level.id);
+      let badge;
+
+      if (st === "completed") {
+        if (level.isBonus) badge = "✅";
+        else badge = `<span class="badgeStars">${"⭐".repeat(stars)}</span>`;
+      } else if (st === "available") {
+        if (!level.isBonus && failed) badge = "❌";
+        else badge = "▶";
+      } else {
+        badge = "🔒";
+      }
+
+      const hintText = (st === "locked") ? missingReqsText(level) : "";
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+
+      const ultimateClass = (level.isUltimate || level.id === "L5") ? " ultimateNode" : "";
+      btn.className = `node ${st}${level.isBonus ? " bonusNode" : ""}${ultimateClass}`;
+      btn.style.left = level.pos.x + "%";
+      btn.style.top  = level.pos.y + "%";
+
+      const label = level.isBonus
+        ? `<div class="status" style="color:rgba(180,83,9,1);font-weight:900;margin-top:3px;">BONUS • Meisterprüfung</div>`
+        : `<div class="status">${st}</div>`;
+
+      btn.innerHTML = `
+        <div class="row">
+          <div>
+            <div class="title">${level.title}</div>
+            ${label}
+            <div class="hint">${hintText}</div>
+          </div>
+          <div class="pillWrap">
+            ${gateHtmlFor(level, st)}
+            <div class="pill">${badge}</div>
+          </div>
+        </div>
+      `;
+
+      btn.onclick = () => {
+        if (st === "locked") return;
+
+        const fromId = state.last || "L1";
+        const toId = level.id;
+
+        state.last = toId;
+        write(state);
+
+        traversePath(fromId, toId, {
+          durationPerHop: 760,
+          onArrive: () => {
+            if (st === "available" || st === "completed") {
+              // Integration: Starte das Zahlen-Spiel mit Welt/Stufe
+              launchFrontendGameFor(level);
+            }
+          }
+        });
+      };
+
+      board.appendChild(btn);
+    }
+  }
+
+  function openRoundModal(level){
+    activeLevel = level;
+    overlay.classList.add("open");
+    overlay.setAttribute("aria-hidden","false");
+    mTitle.textContent = level.title;
+
+    if (level.isBonus) {
+      percentWrapper.style.display = "none";
+      mText.textContent   = "Hast du das Bonuslevel geschafft?";
+      mStatus.textContent = "Hier zählt nur: geschafft oder nicht.";
+    } else {
+      percentWrapper.style.display = "block";
+      if (isCompleted(level.id)) {
+        mText.textContent   = "Willst du dieses Level erneut spielen und dein Ergebnis verbessern?";
+        mStatus.textContent = "Nur bessere Ergebnisse werden gespeichert. Das nächste Level öffnet sich nur, wenn du mindestens 1 Stern erreichst.";
+      } else {
+        mText.textContent   = "Hast du das Level geschafft?";
+        mStatus.textContent = "Du musst mindestens 1 Stern erreichen, damit sich das Tor zum nächsten Level öffnet. Bei 0 Sternen bleibt ein rotes Kreuz.";
+      }
+      const input = document.getElementById("percentInput");
+      const prevPercent = Number((state.percents && state.percents[level.id]) || 100);
+      input.value = isNaN(prevPercent) ? 100 : prevPercent;
+    }
+    mYes.focus();
+  }
+
+  // ---- Integration: Frontend-Start aus Leiterspiel ----
+  function getFrontendBaseUrl(){
+    // Optional konfigurierbar via LocalStorage 'frontend_base_url'
+    // Fallback: gleiche Origin (Vite-Dev-Server)
+    return localStorage.getItem('frontend_base_url') || (window.location.origin + '/');
+  }
+
+  function levelIdToWeltStufe(level){
+    // Aktuell Welt 1; mappe L1..L5 auf Stufe 1..5; Bonus L6 wird ignoriert
+    const id = level.id || '';
+    const num = parseInt(id.replace(/\D+/g, ''), 10);
+    const stufe = isNaN(num) ? 1 : Math.min(Math.max(num,1),5);
+    return { welt: 1, stufe };
+  }
+
+  function launchFrontendGameFor(level){
+    const base = getFrontendBaseUrl();
+    const { welt, stufe } = levelIdToWeltStufe(level);
+    try{
+      const url = new URL(base);
+      url.searchParams.set('mode','number');
+      url.searchParams.set('welt', String(welt));
+      url.searchParams.set('stufe', String(stufe));
+      url.searchParams.set('auto','1');
+      // Navigation im selben Tab
+      window.location.href = url.toString();
+    }catch(e){
+      console.warn('Konnte Frontend-URL nicht parsen:', e);
+      const q = `?mode=number&welt=${welt}&stufe=${stufe}&auto=1`;
+      window.location.href = base.replace(/\/$/,'/') + q;
+    }
+  }
+
+  function closeRoundModal(){
+    overlay.classList.remove("open");
+    overlay.setAttribute("aria-hidden","true");
+    activeLevel = null;
+  }
+
+  function starsFromPercent(percent){
+    if (percent >= 90) return 3;
+    if (percent >= 80) return 2;
+    if (percent >= 60) return 1;
+    return 0;
+  }
+
+  function awardStarsOnComplete(levelId){
+    const input = document.getElementById("percentInput");
+    let percent = input ? Number(input.value) : 0;
+    if (isNaN(percent)) percent = 0;
+    if (percent < 0) percent = 0;
+    if (percent > 100) percent = 100;
+
+    const newStars = starsFromPercent(percent);
+    const oldStars = getStars(levelId);
+    const bestStars = Math.max(oldStars, newStars);
+
+    state.stars[levelId] = bestStars;
+
+    const oldPercent = Number((state.percents && state.percents[levelId]) || 0);
+    state.percents[levelId] = Math.max(oldPercent, percent);
+
+    write(state); // Sterne und Prozente sofort speichern
+    updateStatusPanel(newStars);
+    return { newStars, bestStars };
+  }
+
+  function getNextLinearLevelId(currentId){
+    const ids = getVisibleLinearIds();
+    const idx = ids.indexOf(currentId);
+    if (idx < 0) return null;
+    const next = ids[idx + 1];
+    return next || null;
+  }
+
+  function maybeShowFinale(){
+    if (state.finalShown) return;
+    if (!isCompleted("L5")) return;
+
+    state.finalShown = true;
+    state.rankingAfterFinalShown = false;
+    write(state);
+
+    updateRanking();
+    showFinaleScreen();
+  }
+
+  function showFinaleScreen(){
+    finalOverlay.classList.add("show");
+    finalOverlay.setAttribute("aria-hidden","false");
+  }
+
+  function hideFinaleScreen(){
+    finalOverlay.classList.remove("show");
+    finalOverlay.setAttribute("aria-hidden","true");
+
+    if (!state.rankingAfterFinalShown && isCompleted("L5")) {
+      state.rankingAfterFinalShown = true;
+      write(state);
+      setTimeout(() => {
+        if (!finalOverlay.classList.contains("show") && !epilogOverlay.classList.contains("show")) {
+          showRanking();
+        }
+      }, 520);
+    }
+  }
+
+  function maybeShowEpilog(){
+    if (state.epilogShown) return;
+    if (!isCompleted("L6")) return;
+    state.epilogShown = true;
+    write(state);
+    epilogOverlay.classList.add("show");
+    epilogOverlay.setAttribute("aria-hidden","false");
+  }
+
+  function hideEpilog(){
+    epilogOverlay.classList.remove("show");
+    epilogOverlay.setAttribute("aria-hidden","true");
+  }
+
+  /* ===================== ✅ WELTEN-LOGIK (NEU) ===================== */
+  const WORLD_UNLOCK_KEY = "goldpfad_worlds_unlock_v1";
+  function readWorldUnlock(){
+    try { return JSON.parse(localStorage.getItem(WORLD_UNLOCK_KEY) || "{}"); } catch { return {}; }
+  }
+  function writeWorldUnlock(obj){
+    try { localStorage.setItem(WORLD_UNLOCK_KEY, JSON.stringify(obj)); } catch {}
+  }
+
+  function isWorld2Unlocked(){
+    const w = readWorldUnlock();
+    // Unlock condition: L5 geschafft (Ultimate/Schatz)
+    if (isCompleted("L5")) return true;
+    return !!w.world2;
+  }
+
+  function setWorld2Unlocked(){
+    const w = readWorldUnlock();
+    if (!w.world2){
+      w.world2 = true;
+      writeWorldUnlock(w);
+      showWorldUnlockToast();
+    }
+  }
+
+function showWorldUnlockToast(){
+  const t = document.getElementById("worldUnlockToast");
+  if (!t) return;
+  t.classList.add("show");
+  clearTimeout(showWorldUnlockToast._t);
+  showWorldUnlockToast._t = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+/* 🔁 Aktualisiert die Welt-Auswahl (Text unter Wald & Status von Lava) */
+function updateWorldSelectUI(){
+  // ✅ Info unter der Wald-Map (Welt 1)
+  const w1Meta = document.getElementById("world1Meta");
+  if (w1Meta) {
+    w1Meta.textContent =
+      `⭐ Sterne: ${totalStars()}/${MAX_STARS} • Letztes Level: ${state.last || "L1"}`;
+  }
+
+  // ✅ Lava-Map (Welt 2) anpassen
+  const unlocked = isWorld2Unlocked();
+  const card     = document.getElementById("world2Card");
+  const tag      = document.getElementById("world2Tag");
+  const hint     = document.getElementById("world2Hint");
+  const btn      = document.getElementById("enterWorld2Btn");
+  const lockIcon = document.getElementById("world2LockIcon");
+
+  if (!card || !tag || !hint || !btn || !lockIcon) return;
+
+  if (unlocked){
+    // freigeschaltet
+    card.classList.remove("lockedCard");
+    tag.textContent = "Verfügbar";
+    tag.classList.add("current");
+    hint.textContent = "✅ Freischaltet";
+
+    btn.classList.remove("ghost");
+    btn.classList.add("primary");
+    btn.textContent = "Weiter";
+
+    lockIcon.style.display = "none";
+
+    // Leuchten nur, solange man Welt 2 noch nicht betreten hat
+    if (!state.world2Entered) {
+      card.classList.add("glowPulse");
+      btn.classList.add("glowPulse");
+    } else {
+      card.classList.remove("glowPulse");
+      btn.classList.remove("glowPulse");
+    }
+  } else {
+
+    // noch gesperrt
+    card.classList.add("lockedCard");
+    tag.textContent = "Gesperrt";
+    tag.classList.remove("current");
+    hint.innerHTML = "🔒 Freischalten: <b>Ultimate (L5)</b> schaffen";
+
+    btn.classList.remove("primary");
+    btn.classList.add("ghost");
+    btn.textContent = "Betreten";
+
+    lockIcon.style.display = "grid";
+
+    card.classList.remove("glowPulse");
+    btn.classList.remove("glowPulse");
+  }
+}
+
+/* ⭐ Level-Auswertung + Freischalten Lava-Welt */
+function completeActiveLevel(success){
+  if (!activeLevel) return;
+
+  const completedId = activeLevel.id;
+
+  if (success) {
+    if (!activeLevel.isBonus) {
+      const { bestStars } = awardStarsOnComplete(activeLevel.id);
+
+      // Weniger als 1 Stern -> rotes Kreuz, kein Fortschritt
+      if (bestStars < 1) {
+        state.failed[activeLevel.id] = true;
+        write(state);
+        closeRoundModal();
+        renderAll();
+        updateWorldSelectUI();
+        return;
+      } else {
+        if (state.failed) delete state.failed[activeLevel.id];
+      }
+    } else {
+      if (state.failed) delete state.failed[activeLevel.id];
+    }
+
+    state.completed[activeLevel.id] = true;
+    write(state);
+    updateRanking();
+
+    // 🎁 Schatz-Level (L5) geschafft
+    if (completedId === "L5") {
+      coinRain(10500);
+      const weltenBtn = document.getElementById("backToWorldSelectBtn");
+      if (weltenBtn) weltenBtn.classList.add("glowPulse");
+      // 👉 Lava-Welt freischalten
+      setWorld2Unlocked();
+    }
+
+    // Bonuslevel fertig
+    if (completedId === "L6") {
+      coinRain(12500);
+    }
+
+  } else {
+    // ❌ „Nicht geschafft“
+    if (!activeLevel.isBonus) {
+      state.failed[activeLevel.id] = true;
+    }
+    write(state);
+    closeRoundModal();
+    renderAll();
+    updateWorldSelectUI();
+    return;
+  }
+
+  closeRoundModal();
+  renderAll();
+
+  // Automatisch zum nächsten Level laufen (wenn vorhanden)
+  if (success) {
+    const nextId = getNextLinearLevelId(completedId);
+    if (nextId) {
+      const nextLevel = LEVELS.find(l => l.id === nextId);
+      if (nextLevel && statusOf(nextLevel) === "available") {
+        const fromId = completedId;
+        state.last = nextId;
+        write(state);
+        traversePath(fromId, nextId, { durationPerHop: 860 });
+      }
+    }
+  }
+
+  // Sicherheit: World 2 freigeschaltet, falls L5 fertig
+  if (isCompleted("L5")) setWorld2Unlocked();
+
+  maybeShowFinale();
+  maybeShowEpilog();
+  updateWorldSelectUI();
+}
+
+/* Buttons im Modal → unsere neue Funktion */
+mCancel.onclick = closeRoundModal;
+mNo.onclick     = () => completeActiveLevel(false);
+mYes.onclick    = () => completeActiveLevel(true);
+
+  mCancel.onclick = closeRoundModal;
+  mNo.onclick     = () => completeActiveLevel(false);
+  mYes.onclick    = () => completeActiveLevel(true);
+
+  overlay.onclick = e => { if (e.target === overlay) closeRoundModal(); };
+  window.addEventListener("keydown", e => {
+    if (!overlay.classList.contains("open")) return;
+    if (e.key === "Escape") closeRoundModal();
+    if (e.key === "Enter")  completeActiveLevel(true);
+  });
+
+  finalClose.onclick = hideFinaleScreen;
+  finalOverlay.onclick = e => { if (e.target === finalOverlay) hideFinaleScreen(); };
+  window.addEventListener("keydown", e => {
+    if (!finalOverlay.classList.contains("show")) return;
+    if (e.key === "Escape") hideFinaleScreen();
+  });
+
+  epilogClose.onclick = hideEpilog;
+  epilogOverlay.onclick = e => { if (e.target === epilogOverlay) hideEpilog(); };
+  window.addEventListener("keydown", e => {
+    if (!epilogOverlay.classList.contains("show")) return;
+    if (e.key === "Escape") hideEpilog();
+  });
+
+  document.getElementById("resetBtn").onclick = () => {
+    state = {
+      completed:{},
+      stars:{},
+      percents:{},
+      failed:{},
+      last:"L1",
+      finalShown:false,
+      epilogShown:false,
+      rankingAfterFinalShown:false
+    };
+    write(state);
+    localStorage.removeItem("goldpfad_player_name");
+    localStorage.removeItem(WORLD_UNLOCK_KEY);
+    location.reload();
+  };
+
+  // Reset auch in Welt-Auswahl verfügbar
+  document.getElementById("toWorldSelectResetBtn").onclick = () => {
+    state = {
+      completed:{},
+      stars:{},
+      percents:{},
+      failed:{},
+      last:"L1",
+      finalShown:false,
+      epilogShown:false,
+      rankingAfterFinalShown:false
+    };
+    write(state);
+    localStorage.removeItem("goldpfad_player_name");
+    localStorage.removeItem(WORLD_UNLOCK_KEY);
+    location.reload();
+  };
+
+  function renderAll(){
+    renderProgress();
+    renderEdges();
+    renderNodes();
+    updateStatusPanel();
+  }
+
+  const startLevel = LEVELS.find(l => l.id === state.last) || LEVELS[0];
+  renderAll();
+  requestAnimationFrame(() => popWarriorTo(startLevel.pos.x, startLevel.pos.y));
+
+  window.addEventListener("resize", () => {
+    const lvl = LEVELS.find(l => l.id === state.last) || LEVELS[0];
+    popWarriorTo(lvl.pos.x, lvl.pos.y);
+  });
+
+function showRanking(){
+  let ranking = loadRanking().map(r => {
+    if (r.stars == null && r.score != null) r.stars = r.score;
+    return r;
+  }).sort((a,b) => {
+    const sa = a.stars || 0, sb = b.stars || 0;
+    if (sb !== sa) return sb - sa;
+
+    // Bei gleichen Sternen: Sortiere nach Prozent (höher ist besser)
+    const pa = a.percent || 0, pb = b.percent || 0;
+    if (pb !== pa) return pb - pa;
+
+    // Bei gleichen Sternen und Prozent: Sortiere nach neuesten zuerst
+    const ta = a.updatedAt || 0, tb = b.updatedAt || 0;
+    return tb - ta;
+  });
+
+
+    const el = document.getElementById("rankingList");
+    const summaryEl = document.getElementById("rankingSummary");
+
+    if (!ranking.length) {
+      el.innerHTML = "<p>Noch keine Krieger in der Rangliste.</p>";
+      summaryEl.textContent = "";
+      document.getElementById("rankingOverlay").classList.add("open");
+      return;
+    }
+
+    const total = ranking.length;
+    let myIndex = -1;
+    if (playerName) {
+      myIndex = ranking.findIndex(r => r.name === playerName);
+    }
+
+    if (myIndex >= 0) {
+      const place = myIndex + 1;
+      summaryEl.textContent = `Dein Rang: ${place} von ${total}`;
+    } else {
+      summaryEl.textContent = `Insgesamt ${total} Einträge in der Rangliste.`;
+    }
+
+    el.innerHTML = ranking.map((r,i) => {
+      let medal = "";
+      let bg = "";
+      if (i === 0) { medal="🥇"; bg="rgba(250,204,21,0.12)"; }
+      else if (i === 1) { medal="🥈"; bg="rgba(148,163,184,0.16)"; }
+      else if (i === 2) { medal="🥉"; bg="rgba(245,158,11,0.12)"; }
+
+      const stars = r.stars ?? r.score ?? 0;
+      const percent = r.percent ?? 0;
+
+      const isMe = (playerName && r.name === playerName);
+      const border = isMe ? "1px solid rgba(59,130,246,0.9)" : "1px solid transparent";
+      const extraBg = isMe ? "rgba(59,130,246,0.10)" : bg;
+
+      return `
+        <div data-name="${r.name}"
+          style="
+            display:flex;justify-content:space-between;align-items:center;
+            padding:6px 8px;border-radius:8px;margin-bottom:4px;
+            background:${extraBg};
+            font-weight:${i<3 || isMe ? "700":"500"};
+            border:${border};
+          ">
+          <span>${medal || (i+1 + ".")} ${r.name}</span>
+          <span>⭐ ${stars} <span style="color:#6b7280;font-size:0.9em;">(${percent}%)</span></span>
+        </div>`;
+    }).join("");
+
+    const overlayEl = document.getElementById("rankingOverlay");
+    overlayEl.classList.add("open");
+
+    if (myIndex >= 0) {
+      const myRow = el.querySelector(`[data-name="${playerName}"]`);
+      if (myRow && typeof myRow.scrollIntoView === "function") {
+        myRow.scrollIntoView({block:"center", behavior:"smooth"});
+      }
+    }
+  }
+
+  document.getElementById("rankingClose").onclick = () => {
+    document.getElementById("rankingOverlay").classList.remove("open");
+  };
+  document.getElementById("rankingBtn").onclick = showRanking;
+
+  /* ===================== ✅ WELT-NAVIGATION (NEU) ===================== */
+ document.getElementById("enterWorld1Btn").onclick = () => {
+  showView("world1View");
+
+  // ⬇ Krieger direkt auf das aktuelle Level (Standard: L1) setzen
+  const lvl = LEVELS.find(l => l.id === state.last) || LEVELS[0];
+  requestAnimationFrame(() => {
+    popWarriorTo(lvl.pos.x, lvl.pos.y);
+  });
+
+  // Fokus fix wie bisher
+  setTimeout(() => {
+    const b = document.getElementById("board");
+    if (b && b.focus) b.focus();
+  }, 50);
+};
+
+
+document.getElementById("backToWorldSelectBtn").onclick = () => {
+  // ✨ Glow vom Welten-Button entfernen
+  const weltenBtn = document.getElementById("backToWorldSelectBtn");
+  if (weltenBtn) weltenBtn.classList.remove("glowPulse");
+
+  showView("worldSelectView");
+  updateWorldSelectUI();
+  document.getElementById("enterWorld1Btn")?.focus();
+};
+
+function enterWorld2(){
+  if (!isWorld2Unlocked()){
+    const hint = document.getElementById("world2Hint");
+    if (hint){
+      hint.style.boxShadow = "0 0 0 3px rgba(250,204,21,.25)";
+      setTimeout(() => hint.style.boxShadow = "", 380);
+    }
+    return;
+  }
+
+  // 📌 Merken: Lava-Welt wurde mindestens einmal betreten
+  state.world2Entered = true;
+  write(state);
+
+  // ✨ Glow von Karte + Button entfernen
+  const card = document.getElementById("world2Card");
+  const btn  = document.getElementById("enterWorld2Btn");
+  if (card) card.classList.remove("glowPulse");
+  if (btn)  btn.classList.remove("glowPulse");
+
+  // 👉 Wirklich in die Lava-Welt wechseln
+  showView("world2View");
+  setTimeout(() => document.getElementById("world2BackBtn")?.focus(), 40);
+}
+
+
+
+
+  document.getElementById("enterWorld2Btn").onclick = enterWorld2;
+  document.getElementById("world2Card").addEventListener("click", (e) => {
+    // click anywhere on card (but not double-trigger button)
+    if (e.target && e.target.closest && e.target.closest("button")) return;
+    enterWorld2();
+  });
+
+  document.getElementById("world2BackBtn").onclick = () => {
+    showView("worldSelectView");
+    updateWorldSelectUI();
+    document.getElementById("enterWorld2Btn")?.focus();
+  };
+  document.getElementById("world2BackBtn2").onclick = () => {
+    showView("worldSelectView");
+    updateWorldSelectUI();
+    document.getElementById("enterWorld2Btn")?.focus();
+  };
+  
+
+  // Initial: Welt-Auswahl updaten
+  // Prüfe eingehende Scores aus dem Spiel (Query-Parameter) → öffne Modal und befülle Prozent
+  (function storeIncomingScoreFromURL(){
+    try{
+      const sp = new URLSearchParams(window.location.search);
+      const welt  = parseInt(sp.get('welt') || '', 10);
+      const stufe = parseInt(sp.get('stufe') || '', 10);
+      const score = parseFloat(sp.get('score') || '');
+      const autoComplete = sp.get('autoComplete') === '1' || sp.get('autocomplete') === '1';
+      if (isNaN(welt) || isNaN(stufe) || isNaN(score)) return;
+
+      // Nur Welt 1 aktuell gemappt: L1..L6
+      const lvlId = (welt === 1 && stufe >= 1 && stufe <= 6) ? ('L' + stufe) : null;
+      if (!lvlId) return;
+      const lvl = LEVELS.find(l => l.id === lvlId);
+      if (!lvl) return;
+
+      // In Welt 1 wechseln und Modal öffnen
+      showView('world1View');
+      activeLevel = lvl;
+      
+      if (autoComplete) {
+        // Automatisch abschließen ohne Modal zu öffnen
+        const percent = Math.max(0, Math.min(100, Math.round(Number(score))));
+        
+        // Temporär das Prozentfeld setzen (auch wenn Modal nicht sichtbar)
+        const input = document.getElementById('percentInput');
+        if (input) {
+          input.value = percent;
+        }
+        
+        // Level automatisch als geschafft markieren
+        completeActiveLevel(true);
+        
+        // Krieger an die Levelposition setzen
+        requestAnimationFrame(() => { if (lvl.pos) popWarriorTo(lvl.pos.x, lvl.pos.y); });
+      } else {
+        // Modal öffnen für manuelle Bestätigung
+        openRoundModal(lvl);
+
+        // Prozentfeld mit Spiele-Score vorbefüllen (ersetzt manuelles Eingeben)
+        const input = document.getElementById('percentInput');
+        if (input) {
+          const percent = Math.max(0, Math.min(100, Math.round(Number(score))));
+          input.value = percent;
+          try { input.disabled = true; input.setAttribute('aria-disabled','true'); } catch {}
+        }
+
+        // Krieger an die Levelposition setzen
+        requestAnimationFrame(() => { if (lvl.pos) popWarriorTo(lvl.pos.x, lvl.pos.y); });
+      }
+
+      // Query aus URL entfernen, um erneute Übernahme zu vermeiden
+      try { history.replaceState(null, '', window.location.pathname); } catch {}
+    }catch(e){ console.warn('storeIncomingScoreFromURL failed', e); }
+  })();
+
+  updateWorldSelectUI();
+  // Standard-Hintergrund beim ersten Laden: Wald
+document.body.classList.add("bg-forest");
+</script>
+</body>
+</html>
