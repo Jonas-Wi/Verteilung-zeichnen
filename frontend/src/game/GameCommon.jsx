@@ -48,18 +48,12 @@ export default function GameCommon({ sessionId, level, onGameEnd, showNumbers = 
 				this.gameMode = null;
 			}
 			preload() {
-				// Lade Hintergrundbild
-				this.load.image('forestBg', '/leiterspiel/minispiel/DüstererWald.jpg.webp');
+				// Kein Hintergrundbild mehr laden
 			}
 			create() {
-				// Hintergrundbild hinzufügen und skalieren
-				const bg = this.add.image(WIDTH / 2, HEIGHT / 2, 'forestBg');
-				bg.setDisplaySize(WIDTH, HEIGHT);
+				// Schwarzer Hintergrund
+				const bg = this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x000000);
 				bg.setDepth(-1);
-				
-				// Dunkles Overlay für bessere Lesbarkeit
-				const overlay = this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x000000, 0.3);
-				overlay.setDepth(0);
 				
 				this.gameMode = gameModeRef.current;
 				this.physics.world.setBounds(0, 0, WIDTH, HEIGHT);
