@@ -1,3 +1,5 @@
+Eingabe im Terminal auf je einer Seite 1. und 2. 
+
 1. cd Backend
 
    python -m venv venv
