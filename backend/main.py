@@ -20,6 +20,7 @@ from zahlenevaluation.w1s4evaluation import W1S4Evaluation
 from zahlenevaluation.w1s5evaluation import W1S5Evaluation
 from fragen.stufe2 import Stufe2Fragen
 from zahlenevaluation import W1S1Evaluation
+from data_logger import get_data_logger
 
 app = FastAPI()
 
@@ -123,6 +124,21 @@ def start_session(request: StartSessionRequest):
         # Speichere stufe4_fragen für spätere Evaluation (damit Optionen gleich bleiben)
         if 'stufe4_fragen' in locals() and stufe4_fragen:
             SESSIONS[session_id]["stufe4_fragen_obj"] = stufe4_fragen
+        
+        # 📊 LOGGING: Session-Start
+        try:
+            logger = get_data_logger()
+            logger.log_session_start(
+                session_id=session_id,
+                level_info=level_info.dict() if level_info else {"welt": "N/A", "stufe": "N/A"},
+                distribution_info={
+                    "type": distribution_type,
+                    "n_samples": len(samples),
+                    "game_mode": game_mode
+                }
+            )
+        except Exception as log_error:
+            print(f"⚠️ Logging-Fehler (Session-Start): {log_error}")
         
         response = {
             "session_id": session_id,
@@ -261,6 +277,20 @@ class W1S1EvaluateRequest(BaseModel):
             evaluator = W1S2Evaluation(alle_fragen, data.antworten)
         
         result = evaluator.evaluate()
+        
+        # 📊 LOGGING: Antworten und Ergebnisse
+        try:
+            logger = get_data_logger()
+            level_info = SESSIONS[sid].get("level_info", {"welt": 1, "stufe": 2})
+            logger.log_answers(
+                session_id=sid,
+                level_info=level_info,
+                antworten=data.antworten,
+                evaluation_result=result
+            )
+        except Exception as log_error:
+            print(f"⚠️ Logging-Fehler (W1S2): {log_error}")
+        
         return {"status": "ok", "evaluation": result}
     session_id: str
     antworten: List[int]
@@ -287,6 +317,20 @@ def evaluate_w1s1(data: W1S1EvaluateRequest):
     fragen = Stufe1Fragen(samples).get_fragen()
     evaluator = W1S1Evaluation(fragen, data.antworten)
     result = evaluator.evaluate()
+    
+    # 📊 LOGGING: Antworten und Ergebnisse
+    try:
+        logger = get_data_logger()
+        level_info = SESSIONS[sid].get("level_info", {"welt": 1, "stufe": 1})
+        logger.log_answers(
+            session_id=sid,
+            level_info=level_info,
+            antworten=data.antworten,
+            evaluation_result=result
+        )
+    except Exception as log_error:
+        print(f"⚠️ Logging-Fehler (W1S1): {log_error}")
+    
     return {"status": "ok", "evaluation": result}
 
 
@@ -333,6 +377,20 @@ def evaluate_w1s3(data: W1S3EvaluateRequest):
         "total": result.get("total"),
         "questions_score": result.get("questions_score"),
     }
+    
+    # 📊 LOGGING: Antworten und Ergebnisse
+    try:
+        logger = get_data_logger()
+        level_info = SESSIONS[sid].get("level_info", {"welt": 1, "stufe": 3})
+        logger.log_answers(
+            session_id=sid,
+            level_info=level_info,
+            antworten=data.antworten,
+            evaluation_result=filtered
+        )
+    except Exception as log_error:
+        print(f"⚠️ Logging-Fehler (W1S3): {log_error}")
+    
     return {"status": "ok", "evaluation": filtered}
 
 
@@ -421,6 +479,20 @@ def evaluate_w1s4(data: W1S4EvaluateRequest):
         "total": total,
         "questions_score": questions_score,
     }
+    
+    # 📊 LOGGING: Antworten und Ergebnisse
+    try:
+        logger = get_data_logger()
+        level_info = SESSIONS[sid].get("level_info", {"welt": 1, "stufe": 4})
+        logger.log_answers(
+            session_id=sid,
+            level_info=level_info,
+            antworten=data.antworten,
+            evaluation_result=filtered
+        )
+    except Exception as log_error:
+        print(f"⚠️ Logging-Fehler (W1S4): {log_error}")
+    
     return {"status": "ok", "evaluation": filtered}
 
 
@@ -457,6 +529,19 @@ def evaluate_w1s5(data: W1S5EvaluateRequest):
     # Nutze die komposite Bewertung aus W1S5Evaluation
     evaluator = W1S5Evaluation(true_histogram, user_histogram)
     ev = evaluator.evaluate()
+    
+    # 📊 LOGGING: Histogram-Eingaben und Ergebnisse
+    try:
+        logger = get_data_logger()
+        level_info = SESSIONS[sid].get("level_info", {"welt": 1, "stufe": 5})
+        logger.log_drawing_evaluation(
+            session_id=sid,
+            level_info=level_info,
+            player_histogram=user_histogram,
+            evaluation_result=ev
+        )
+    except Exception as log_error:
+        print(f"⚠️ Logging-Fehler (W1S5): {log_error}")
 
     return {
         "status": "ok",

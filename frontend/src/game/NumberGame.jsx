@@ -7,7 +7,8 @@ import W1S3Questions from "../visualizer/w1s3.jsx";
 
 export default function NumberGame(props) {
 	const { sessionId, level, onRestartGame } = props;
-	const [gameActive, setGameActive] = useState(true);
+	const [showIntroduction, setShowIntroduction] = useState(level && level.welt === 1 && level.stufe === 1);
+	const [gameActive, setGameActive] = useState(!(level && level.welt === 1 && level.stufe === 1));
 	const [evaluationResult, setEvaluationResult] = useState(null);
 	const [blockMode, setBlockMode] = useState(false);
 	const [preRevealStage, setPreRevealStage] = useState(null);
@@ -353,7 +354,46 @@ export default function NumberGame(props) {
 
 	return (
 		<div>
-			{gameActive ? (
+			{showIntroduction ? (
+				<div className="flex items-center justify-center min-h-screen bg-gray-100">
+					<div className="max-w-2xl mx-auto p-8 bg-white rounded-lg shadow-lg">
+						<h2 className="text-2xl font-bold mb-6 text-center text-blue-600">Willkommen zu Level 1!</h2>
+						<div className="space-y-4 text-lg text-gray-700 mb-8">
+							<p className="flex items-start">
+								<span className="text-orange-500 font-bold mr-2">•</span>
+								<span>Bewege den <strong className="text-orange-500">orangenen Cursor</strong> <span className="text-sm text-gray-600">(nach ganz unten scrollen)</span> unten mit der Maus, um den <strong className="text-orange-500">orangenen Ball</strong> zu treffen.</span>
+							</p>
+							<p className="flex items-start">
+								<span className="text-orange-500 font-bold mr-2">•</span>
+								<span>Schieße damit die Blöcke ab!</span>
+							</p>
+							<p className="flex items-start">
+								<span className="text-blue-500 font-bold mr-2">•</span>
+								<span><strong>Achte auf die Zahlen in den Ballons</strong> – sie sind wichtig für die späteren Fragen!</span>
+							</p>
+							<p className="flex items-start">
+								<span className="text-green-500 font-bold mr-2">•</span>
+								<span>Du musst die Ballons <strong>nicht</strong> mit dem orangenen Cursor treffen – sie bleiben automatisch im Sichtfeld.</span>
+							</p>
+							<p className="flex items-start">
+								<span className="text-purple-500 font-bold mr-2">•</span>
+								<span>Bei den anschließenden Fragen wird von <strong>allen 10 Ballons</strong> ausgegangen, nicht nur von denen, die du getroffen hast.</span>
+							</p>
+						</div>
+						<div className="flex justify-center">
+							<button
+								onClick={() => {
+									setShowIntroduction(false);
+									setGameActive(true);
+								}}
+								className="px-8 py-3 bg-green-500 text-white text-xl font-bold rounded-lg hover:bg-green-600 transition-colors shadow-md"
+							>
+								Verstanden – Los geht's!
+							</button>
+						</div>
+					</div>
+				</div>
+			) : gameActive ? (
 				<GameCommon {...props} gameMode="number" onGameEnd={handleGameEnd} />
 			) : (
 				<div className="mx-auto">
